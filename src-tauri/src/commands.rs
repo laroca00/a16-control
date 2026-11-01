@@ -4,6 +4,8 @@ use tauri::{AppHandle, Manager, State};
 use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
 use crate::fan::FanMode;
+use crate::keyboard::KeyboardView;
+use crate::keyboard_ctl::{self, KeyboardCtl};
 use crate::power::{self, PowerView, UiMode};
 use crate::setup::{self, SetupStatus, TASK_NAME};
 use crate::state::{self, AppState};
@@ -105,6 +107,29 @@ pub fn set_power_option(state: State<'_, AppState>, key: String, value: bool) ->
 }
 
 #[tauri::command]
+pub fn get_keyboard(ctl: State<'_, KeyboardCtl>) -> KeyboardView {
+    ctl.view()
+}
+
+#[tauri::command]
+pub fn set_keyboard_color(app: AppHandle, rgb: [u8; 3]) -> KeyboardView {
+    keyboard_ctl::update(&app, |s, _| {
+        s.rgb = rgb;
+        s.rainbow = false;
+    })
+}
+
+#[tauri::command]
+pub fn set_keyboard_brightness(app: AppHandle, value: u8) -> KeyboardView {
+    keyboard_ctl::update(&app, |s, _| s.brightness = value.min(100))
+}
+
+#[tauri::command]
+pub fn set_keyboard_rainbow(app: AppHandle, on: bool) -> KeyboardView {
+    keyboard_ctl::update(&app, |s, _| s.rainbow = on)
+}
+
+#[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
 }
@@ -144,6 +169,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         get_power,
         set_power_mode,
         set_power_option,
+        get_keyboard,
+        set_keyboard_color,
+        set_keyboard_brightness,
+        set_keyboard_rainbow,
         open_main,
         quit_app
     ]

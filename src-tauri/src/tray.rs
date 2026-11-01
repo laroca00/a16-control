@@ -17,6 +17,7 @@ pub struct TrayItems {
     open: MenuItem<Wry>,
     fan: CheckMenuItem<Wry>,
     power: Submenu<Wry>,
+    lights: CheckMenuItem<Wry>,
     modes: [(UiMode, CheckMenuItem<Wry>); 3],
     quit: MenuItem<Wry>,
     /// When the panel last hid itself on blur; the click that caused the
@@ -29,13 +30,14 @@ struct Labels {
     fan: &'static str,
     power: &'static str,
     modes: [&'static str; 3],
+    lights: &'static str,
     quit: &'static str,
 }
 
 fn labels(lang: &str) -> Labels {
     match lang {
-        "tr" => Labels { open: "Aç", fan: "Max Fan", power: "Güç modu", modes: ["Pil", "Auto", "Performans"], quit: "Çıkış" },
-        _ => Labels { open: "Open", fan: "Max Fan", power: "Power mode", modes: ["Battery", "Auto", "Performance"], quit: "Exit" },
+        "tr" => Labels { open: "Aç", fan: "Max Fan", power: "Güç modu", modes: ["Pil", "Auto", "Performans"], lights: "Klavye ışığı", quit: "Çıkış" },
+        _ => Labels { open: "Open", fan: "Max Fan", power: "Power mode", modes: ["Battery", "Auto", "Performance"], lights: "Keyboard light", quit: "Exit" },
     }
 }
 
@@ -53,9 +55,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
     };
     let modes = [item(0)?, item(1)?, item(2)?];
     let power = Submenu::with_items(app, l.power, true, &[&modes[0].1, &modes[1].1, &modes[2].1])?;
+    let lit = app.state::<crate::keyboard_ctl::KeyboardCtl>().settings().brightness > 0;
+    let lights = CheckMenuItem::with_id(app, "lights", l.lights, true, lit, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", l.quit, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &fan, &power, &quit])?;
-    app.manage(TrayItems { open, fan, power, modes, quit, panel_hidden_at: Mutex::new(None) });
+    let menu = Menu::with_items(app, &[&open, &fan, &power, &lights, &quit])?;
+    app.manage(TrayItems { open, fan, power, lights, modes, quit, panel_hidden_at: Mutex::new(None) });
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().cloned().expect("bundled icon"))
@@ -66,6 +70,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
             "open" => show_main(app),
             "fan" => toggle_fan(app),
             "quit" => self::quit(app),
+            "lights" => {
+                crate::keyboard_ctl::update(app, crate::keyboard::toggle_lights);
+            }
             id => {
                 if let Some((mode, _)) = MODE_IDS.iter().find(|(_, mid)| *mid == id) {
                     set_mode_from_tray(app, *mode);
@@ -92,6 +99,7 @@ pub fn relabel(app: &AppHandle) {
     let _ = items.open.set_text(l.open);
     let _ = items.fan.set_text(l.fan);
     let _ = items.power.set_text(l.power);
+    let _ = items.lights.set_text(l.lights);
     for (i, (_, item)) in items.modes.iter().enumerate() {
         let _ = item.set_text(l.modes[i]);
     }
@@ -101,6 +109,12 @@ pub fn relabel(app: &AppHandle) {
 pub fn sync_fan_check(app: &AppHandle, t: Option<&Telemetry>) {
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.fan.set_checked(matches!(t, Some(t) if t.fan_mode == FanMode::Max));
+    }
+}
+
+pub fn sync_lights(app: &AppHandle, on: bool) {
+    if let Some(items) = app.try_state::<TrayItems>() {
+        let _ = items.lights.set_checked(on);
     }
 }
 

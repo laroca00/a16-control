@@ -76,6 +76,46 @@ pub fn is_resume(gap: Duration) -> bool {
     gap >= RESUME_GAP
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KeyboardSettings {
+    pub rgb: [u8; 3],
+    pub brightness: u8,
+    pub rainbow: bool,
+}
+
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+pub struct Preset {
+    pub name: &'static str,
+    pub rgb: [u8; 3],
+}
+
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+pub struct KeyboardView {
+    pub rgb: [u8; 3],
+    pub brightness: u8,
+    pub rainbow: bool,
+    pub presets: Vec<Preset>,
+}
+
+pub fn view(s: &KeyboardSettings) -> KeyboardView {
+    KeyboardView {
+        rgb: s.rgb,
+        brightness: s.brightness,
+        rainbow: s.rainbow,
+        presets: PRESETS.iter().map(|(name, rgb)| Preset { name, rgb: *rgb }).collect(),
+    }
+}
+
+/// Lights off remembers the brightness so lights on can bring it back.
+pub fn toggle_lights(s: &mut KeyboardSettings, last_on: &mut u8) {
+    if s.brightness > 0 {
+        *last_on = s.brightness;
+        s.brightness = 0;
+    } else {
+        s.brightness = if *last_on > 0 { *last_on } else { 100 };
+    }
+}
+
 pub trait LampDevice: Send {
     fn write(&mut self, report: &[u8]) -> Result<(), String>;
 }
@@ -233,6 +273,26 @@ mod tests {
         let mut dev = crate::hw::hid::open_lamp().expect("lamp interface");
         println!("control {:?}", dev.write(&control_report()));
         println!("color {:?}", dev.write(&color_report([64, 0, 64], 53)));
+    }
+
+    #[test]
+    fn keyboard_view_lists_presets() {
+        let v = view(&KeyboardSettings { rgb: [1, 2, 3], brightness: 70, rainbow: true });
+        assert_eq!(v.rgb, [1, 2, 3]);
+        assert_eq!(v.brightness, 70);
+        assert!(v.rainbow);
+        assert_eq!(v.presets.len(), 8);
+        assert_eq!(v.presets[0].name, "white");
+    }
+
+    #[test]
+    fn off_and_on_restore_the_last_brightness() {
+        let mut s = KeyboardSettings { rgb: [255; 3], brightness: 60, rainbow: false };
+        let mut last = 0;
+        toggle_lights(&mut s, &mut last);
+        assert_eq!((s.brightness, last), (0, 60));
+        toggle_lights(&mut s, &mut last);
+        assert_eq!(s.brightness, 60);
     }
 
     #[test]

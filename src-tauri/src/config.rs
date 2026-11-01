@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::keyboard::KeyboardSettings;
 use crate::power::{Options, UiMode};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -11,17 +12,38 @@ pub struct Config {
     pub power_mode: UiMode,
     pub auto_game: bool,
     pub acdc_switch: bool,
+    pub kb_color: [u8; 3],
+    pub kb_brightness: u8,
+    pub kb_rainbow: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { lang: None, power_mode: UiMode::Auto, auto_game: false, acdc_switch: true }
+        Config {
+            lang: None,
+            power_mode: UiMode::Auto,
+            auto_game: false,
+            acdc_switch: true,
+            kb_color: [255, 255, 255],
+            kb_brightness: 100,
+            kb_rainbow: false,
+        }
     }
 }
 
 impl Config {
     pub fn power_options(&self) -> Options {
         Options { auto_game: self.auto_game, acdc_switch: self.acdc_switch }
+    }
+
+    pub fn keyboard(&self) -> KeyboardSettings {
+        KeyboardSettings { rgb: self.kb_color, brightness: self.kb_brightness, rainbow: self.kb_rainbow }
+    }
+
+    pub fn set_keyboard(&mut self, k: &KeyboardSettings) {
+        self.kb_color = k.rgb;
+        self.kb_brightness = k.brightness;
+        self.kb_rainbow = k.rainbow;
     }
 }
 
@@ -83,7 +105,7 @@ mod tests {
     #[test]
     fn config_roundtrip_keeps_power_fields() {
         let path = temp("power");
-        let cfg = Config { lang: None, power_mode: UiMode::Performance, auto_game: true, acdc_switch: false };
+        let cfg = Config { power_mode: UiMode::Performance, auto_game: true, acdc_switch: false, ..Config::default() };
         save_to(&path, &cfg).unwrap();
         assert_eq!(load_from(&path), cfg);
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
@@ -98,6 +120,16 @@ mod tests {
         assert_eq!(cfg.lang.as_deref(), Some("en"));
         assert!(cfg.acdc_switch);
         assert_eq!(cfg.power_mode, UiMode::Auto);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn config_keeps_keyboard_fields() {
+        let path = temp("kb");
+        let cfg = Config { kb_color: [10, 20, 30], kb_brightness: 40, kb_rainbow: true, ..Config::default() };
+        save_to(&path, &cfg).unwrap();
+        assert_eq!(load_from(&path), cfg);
+        assert_eq!(Config::default().kb_brightness, 100);
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 

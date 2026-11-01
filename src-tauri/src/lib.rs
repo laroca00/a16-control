@@ -5,6 +5,7 @@ pub mod elevation;
 pub mod fan;
 pub mod hw;
 pub mod keyboard;
+pub mod keyboard_ctl;
 pub mod os;
 pub mod power;
 pub mod setup;
@@ -31,13 +32,17 @@ pub fn run(needs_setup: bool, tray_start: bool) {
     } else {
         Some(Box::new(|| ComWmi::connect().map(|w| Arc::new(w) as Arc<dyn GbWmi>)))
     };
-    let state = AppState::new(connector, config::load());
+    let cfg = config::load();
+    let keyboard = keyboard_ctl::KeyboardCtl::new(cfg.keyboard());
+    let state = AppState::new(connector, cfg);
     // A firmware interface that is not reachable at sign-in needs explaining.
     let show_main_now = needs_setup || state.wmi().is_err() || !tray_start;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
+        .plugin(keyboard_ctl::shortcut_plugin())
         .manage(state)
+        .manage(keyboard)
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -54,6 +59,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
                 tray::show_main(app.handle());
             }
             spawn_background(app.handle().clone());
+            keyboard_ctl::spawn(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
