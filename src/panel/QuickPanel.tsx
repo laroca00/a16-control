@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { api } from "../api";
 import { MaxFanButton } from "../components/MaxFanButton";
-import { KeyboardLightNotice, SetupNotice } from "../components/Notices";
+import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../components/Notices";
 import { useFanControl } from "../hooks/useFanControl";
 import { useT } from "../i18n";
 import { LiquidGlass } from "../ui/LiquidGlass";
@@ -10,7 +10,7 @@ import "./panel.css";
 
 export function QuickPanel() {
   const t = useT();
-  const { telemetry, status, needsSetup, busy, error, toggle } = useFanControl();
+  const { telemetry, status, needsSetup, unsupported, unreachable, busy, error, toggle } = useFanControl();
 
   useEffect(() => {
     document.body.classList.add("panel-window");
@@ -25,6 +25,8 @@ export function QuickPanel() {
       <LiquidGlass className="panel__card" radius={22}>
         {needsSetup ? (
           <SetupNotice />
+        ) : unsupported ? (
+          <UnsupportedNotice />
         ) : (
           <>
             <MaxFanButton telemetry={telemetry} busy={busy} onToggle={toggle} />
@@ -39,6 +41,7 @@ export function QuickPanel() {
               </div>
             </dl>
             {error && <p className="panel__error">{t("errorGeneric", { error })}</p>}
+            {!error && unreachable && <p className="panel__error">{t("unreachable", { error: unreachable })}</p>}
           </>
         )}
         {status?.keyboardLight && <KeyboardLightNotice />}

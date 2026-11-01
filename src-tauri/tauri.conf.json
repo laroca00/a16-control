@@ -56,7 +56,7 @@
     "shortDescription": "Fan control for the Gigabyte GAMING A16",
     "windows": {
       "nsis": {
-        "installMode": "currentUser",
+        "installMode": "perMachine",
         "installerHooks": "./installer-hooks.nsh",
         "languages": [
           "English",

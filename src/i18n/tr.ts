@@ -22,6 +22,10 @@ export const tr: Record<keyof typeof en, string> = {
   setupWorking: "Kuruluyor…",
   setupFailed: "Kurulum tamamlanmadı: {error}",
 
+  unsupportedTitle: "Bu laptopun sensör arayüzü desteklenmiyor",
+  unsupportedBody: "Firmware, GiENEMY'nin ihtiyaç duyduğu fan ve sıcaklık okumalarını sunmuyor.",
+  unreachable: "Fanlara şu an ulaşılamıyor: {error}",
+
   klTitle: "KeyboardLight hâlâ yüklü",
   klBody: "İkisi aynı fanları yönetip birbirinin ayarını bozuyor. KeyboardLight'ı kaldır.",
 

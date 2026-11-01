@@ -32,6 +32,16 @@ export function SetupNotice() {
   );
 }
 
+export function UnsupportedNotice() {
+  const t = useT();
+  return (
+    <section className="notice notice--warn">
+      <h2 className="notice__title">{t("unsupportedTitle")}</h2>
+      <p className="notice__body">{t("unsupportedBody")}</p>
+    </section>
+  );
+}
+
 export function KeyboardLightNotice() {
   const t = useT();
   return (

@@ -11,7 +11,7 @@ vi.mock("../api", async (orig) => {
     ...real,
     api: {
       getSetupStatus: vi.fn(() =>
-        Promise.resolve({ elevated: true, task: true, wmiSet: true, wmiGet: true, keyboardLight: false }),
+        Promise.resolve({ elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, keyboardLight: false }),
       ),
       getTelemetry: vi.fn(() =>
         Promise.resolve({ rpm1: 4400, rpm2: 4900, cpuTemp: 70, gpuTemp: 60, cpuDuty: 50, gpuDuty: 50, fanMode: "auto" }),

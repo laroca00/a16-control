@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyboardLightNotice, SetupNotice } from "../components/Notices";
+import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../components/Notices";
 import { useFanControl } from "../hooks/useFanControl";
 import { ComingSoon } from "../pages/ComingSoon";
 import { FanPage } from "../pages/FanPage";
@@ -18,9 +18,10 @@ export function MainWindow() {
       <ShaderGradient className="main__backdrop" colors={["#0b1846", "#2f55c8", "#1c9c92"]} brightness={0.85} />
       <Sidebar page={page} onSelect={setPage} />
       <main className="main__content">
-        {(control.needsSetup || control.status?.keyboardLight) && (
+        {(control.needsSetup || control.unsupported || control.status?.keyboardLight) && (
           <div className="main__notices">
             {control.needsSetup && <SetupNotice />}
+            {control.unsupported && <UnsupportedNotice />}
             {control.status?.keyboardLight && <KeyboardLightNotice />}
           </div>
         )}

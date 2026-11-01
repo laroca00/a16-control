@@ -8,7 +8,7 @@ type Control = ReturnType<typeof useFanControl>;
 
 export function Overview({ control }: { control: Control }) {
   const t = useT();
-  const { telemetry, busy, error, toggle } = control;
+  const { telemetry, busy, error, unreachable, toggle } = control;
   return (
     <div className="page page--overview">
       <h1 className="page__title">{t("navOverview")}</h1>
@@ -16,7 +16,13 @@ export function Overview({ control }: { control: Control }) {
         <LiquidGlass className="overview__hero" radius={28}>
           <MaxFanButton telemetry={telemetry} busy={busy} onToggle={toggle} />
           <p className="overview__status">
-            {error ? t("errorGeneric", { error }) : telemetry?.fanMode === "max" ? t("statusMax") : t("statusAuto")}
+            {error
+              ? t("errorGeneric", { error })
+              : unreachable
+                ? t("unreachable", { error: unreachable })
+                : telemetry?.fanMode === "max"
+                  ? t("statusMax")
+                  : t("statusAuto")}
           </p>
         </LiquidGlass>
         <LiquidGlass className="overview__card" radius={24}>

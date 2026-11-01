@@ -1,12 +1,11 @@
 //! One-time elevated install: registers the firmware WMI classes (only where
 //! missing) and the logon task that starts GiENEMY elevated without UAC.
 
-use std::path::Path;
-use std::process::Command;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::elevation::{hidden, is_elevated};
+use crate::elevation::{is_elevated, tool};
 use crate::fan;
 use crate::hw::com::{class_methods, ComWmi};
 
@@ -42,6 +41,8 @@ pub struct SetupStatus {
     pub task: bool,
     pub wmi_set: bool,
     pub wmi_get: bool,
+    /// The getter class exists at all; when it lacks our methods, setup cannot fix it.
+    pub get_class: bool,
     pub keyboard_light: bool,
 }
 
@@ -102,11 +103,8 @@ pub fn task_xml(exe: &Path, user: &str) -> String {
     )
 }
 
-fn run_ok(program: &str, args: &[&str]) -> bool {
-    hidden(Command::new(program).args(args))
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+fn run_ok(tool_name: &str, args: &[&str]) -> bool {
+    tool(tool_name).args(args).output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 pub fn task_command_matches(task_xml: &str, exe: &Path) -> bool {
@@ -118,7 +116,8 @@ pub fn task_command_matches(task_xml: &str, exe: &Path) -> bool {
 /// a stale task would launch the old copy, so it counts as missing.
 pub fn task_exists() -> bool {
     let Ok(exe) = std::env::current_exe() else { return false };
-    hidden(Command::new("schtasks").args(["/query", "/tn", TASK_NAME, "/xml"]))
+    tool("schtasks.exe")
+        .args(["/query", "/tn", TASK_NAME, "/xml"])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -136,7 +135,7 @@ fn decode_task_xml(bytes: &[u8]) -> String {
 }
 
 fn task_registered() -> bool {
-    run_ok("schtasks", &["/query", "/tn", TASK_NAME])
+    run_ok("schtasks.exe", &["/query", "/tn", TASK_NAME])
 }
 
 fn class_has(class: &str, required: &[&str]) -> bool {
@@ -146,11 +145,12 @@ fn class_has(class: &str, required: &[&str]) -> bool {
 }
 
 fn keyboard_light_present() -> bool {
-    let running = hidden(Command::new("tasklist").args(["/FI", "IMAGENAME eq KeyboardLight.exe", "/NH"]))
+    let running = tool("tasklist.exe")
+        .args(["/FI", "IMAGENAME eq KeyboardLight.exe", "/NH"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).contains("KeyboardLight.exe"))
         .unwrap_or(false);
-    running || run_ok("schtasks", &["/query", "/tn", "AeroControlLogon"])
+    running || run_ok("schtasks.exe", &["/query", "/tn", "AeroControlLogon"])
 }
 
 pub fn status() -> SetupStatus {
@@ -159,16 +159,35 @@ pub fn status() -> SetupStatus {
         task: task_exists(),
         wmi_set: class_has("GB_WMIACPI_Set", &REQUIRED_SET),
         wmi_get: class_has("GB_WMIACPI_Get", &REQUIRED_GET),
+        get_class: class_methods("GB_WMIACPI_Get").is_ok(),
         keyboard_light: keyboard_light_present(),
     }
 }
 
-fn mofcomp(contents: &str, name: &str) -> Result<(), String> {
-    let path = std::env::temp_dir().join(name);
-    std::fs::write(&path, contents).map_err(|e| format!("write {name}: {e}"))?;
-    let out = hidden(Command::new("mofcomp").arg(&path))
-        .output()
-        .map_err(|e| format!("mofcomp: {e}"))?;
+/// Where install writes the files it hands to mofcomp and schtasks. It sits
+/// beside the exe, which the installer puts in Program Files, so a
+/// non-elevated process cannot swap them before the elevated tools read them.
+pub fn setup_workdir(exe: &Path) -> PathBuf {
+    exe.parent().map(|d| d.join("setup")).unwrap_or_else(|| PathBuf::from("setup"))
+}
+
+fn write_private(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    let path = dir.join(name);
+    // Replace whatever is there, link or not, instead of writing through it.
+    let _ = std::fs::remove_file(&path);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, bytes))
+        .map_err(|e| format!("write {name}: {e}"))?;
+    Ok(path)
+}
+
+fn mofcomp(dir: &Path, contents: &str, name: &str) -> Result<(), String> {
+    let path = write_private(dir, name, contents.as_bytes())?;
+    let out = tool(r"wbem\mofcomp.exe").arg(&path).output().map_err(|e| format!("mofcomp: {e}"))?;
     let _ = std::fs::remove_file(&path);
     if out.status.success() {
         Ok(())
@@ -180,29 +199,31 @@ fn mofcomp(contents: &str, name: &str) -> Result<(), String> {
 fn current_user() -> String {
     let domain = std::env::var("USERDOMAIN").unwrap_or_default();
     let user = std::env::var("USERNAME").unwrap_or_default();
-    if domain.is_empty() { user } else { format!("{domain}\\{user}") }
+    if domain.is_empty() { user } else { format!(r"{domain}\{user}") }
 }
 
 pub fn install(exe: &Path) -> Result<(), String> {
+    let dir = setup_workdir(exe);
     if !class_has("GB_WMIACPI_Set", &REQUIRED_SET) {
-        mofcomp(SET_MOF, "gienemy-set.mof")?;
+        mofcomp(&dir, SET_MOF, "gienemy-set.mof")?;
     }
     // Only when absent: Gigabyte's own definition is fuller than ours.
     if class_methods("GB_WMIACPI_Get").is_err() {
-        mofcomp(GET_MOF, "gienemy-get.mof")?;
+        mofcomp(&dir, GET_MOF, "gienemy-get.mof")?;
     }
 
     // schtasks expects the XML file in UTF-16 with a BOM.
     let xml = task_xml(exe, &current_user());
     let mut bytes = vec![0xFF, 0xFE];
     bytes.extend(xml.encode_utf16().flat_map(u16::to_le_bytes));
-    let path = std::env::temp_dir().join("gienemy-task.xml");
-    std::fs::write(&path, bytes).map_err(|e| format!("write task xml: {e}"))?;
+    let path = write_private(&dir, "gienemy-task.xml", &bytes)?;
     let path_str = path.display().to_string();
-    let out = hidden(Command::new("schtasks").args(["/create", "/tn", TASK_NAME, "/xml", &path_str, "/f"]))
+    let out = tool("schtasks.exe")
+        .args(["/create", "/tn", TASK_NAME, "/xml", &path_str, "/f"])
         .output()
         .map_err(|e| format!("schtasks: {e}"))?;
     let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_dir(&dir);
     if !out.status.success() {
         return Err(format!("schtasks /create: {}", String::from_utf8_lossy(&out.stderr).trim()));
     }
@@ -221,8 +242,8 @@ pub fn uninstall() -> Result<(), String> {
         let _ = fan::release(&wmi);
     }
     // Stops the running copy so the uninstaller can delete its files.
-    let _ = run_ok("schtasks", &["/end", "/tn", TASK_NAME]);
-    if run_ok("schtasks", &["/delete", "/tn", TASK_NAME, "/f"]) {
+    let _ = run_ok("schtasks.exe", &["/end", "/tn", TASK_NAME]);
+    if run_ok("schtasks.exe", &["/delete", "/tn", TASK_NAME, "/f"]) {
         Ok(())
     } else {
         Err("schtasks /delete failed".into())
@@ -254,6 +275,12 @@ mod tests {
     fn task_xml_escapes_path() {
         let x = task_xml(Path::new(r"C:\R&D\GiENEMY.exe"), r"PC\u");
         assert!(x.contains(r"C:\R&amp;D\GiENEMY.exe"));
+    }
+
+    #[test]
+    fn setup_files_go_next_to_the_exe() {
+        let dir = setup_workdir(Path::new(r"C:\Program Files\GiENEMY\GiENEMY.exe"));
+        assert_eq!(dir, Path::new(r"C:\Program Files\GiENEMY\setup"));
     }
 
     #[test]

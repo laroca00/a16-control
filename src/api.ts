@@ -17,6 +17,8 @@ export type SetupStatus = {
   task: boolean;
   wmiSet: boolean;
   wmiGet: boolean;
+  /** The getter class exists; if it still lacks our methods, setup cannot fix it. */
+  getClass: boolean;
   keyboardLight: boolean;
 };
 

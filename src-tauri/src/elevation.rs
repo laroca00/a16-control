@@ -1,11 +1,13 @@
 //! Elevation helpers. GiENEMY always runs elevated, started by its logon task.
 
 use std::os::windows::process::CommandExt;
+use std::path::PathBuf;
 use std::process::Command;
 
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::System::SystemInformation::GetSystemDirectoryW;
 use windows::Win32::System::Threading::{
     GetCurrentProcess, GetExitCodeProcess, OpenProcessToken, WaitForSingleObject, INFINITE,
 };
@@ -16,9 +18,25 @@ use crate::setup::TASK_NAME;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Keeps console helpers (schtasks, mofcomp, tasklist) from flashing a window.
-pub fn hidden(cmd: &mut Command) -> &mut Command {
-    cmd.creation_flags(CREATE_NO_WINDOW)
+/// Absolute path of a Windows tool, e.g. `system_tool("schtasks.exe")`.
+/// A bare name would be searched in our own folder first, and this process
+/// runs elevated.
+pub fn system_tool(relative: &str) -> PathBuf {
+    let mut buf = [0u16; 260];
+    let len = unsafe { GetSystemDirectoryW(Some(&mut buf)) } as usize;
+    let dir = if len > 0 && len < buf.len() {
+        PathBuf::from(String::from_utf16_lossy(&buf[..len]))
+    } else {
+        PathBuf::from(r"C:\Windows\System32")
+    };
+    dir.join(relative)
+}
+
+/// A System32 tool that runs without flashing a console window.
+pub fn tool(relative: &str) -> Command {
+    let mut cmd = Command::new(system_tool(relative));
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -89,7 +107,7 @@ pub fn run_elevated_and_wait(args: &str) -> Result<i32, String> {
 }
 
 pub fn launch_via_task() -> Result<(), String> {
-    let out = hidden(Command::new("schtasks").args(["/run", "/tn", TASK_NAME]))
+    let out = tool("schtasks.exe").args(["/run", "/tn", TASK_NAME])
         .output()
         .map_err(|e| e.to_string())?;
     if out.status.success() {
@@ -102,6 +120,15 @@ pub fn launch_via_task() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_tools_resolve_inside_system32() {
+        let s = system_tool("schtasks.exe").display().to_string().to_lowercase();
+        assert!(s.ends_with(r"\system32\schtasks.exe"), "{s}");
+        assert!(std::path::Path::new(&s).is_absolute());
+        let m = system_tool(r"wbem\mofcomp.exe").display().to_string().to_lowercase();
+        assert!(m.ends_with(r"\system32\wbem\mofcomp.exe"), "{m}");
+    }
 
     #[test]
     fn startup_action_cli_wins() {

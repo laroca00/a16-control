@@ -20,6 +20,10 @@ export const en = {
   setupWorking: "Setting up…",
   setupFailed: "Setup did not finish: {error}",
 
+  unsupportedTitle: "This laptop's sensor interface is not supported",
+  unsupportedBody: "Its firmware does not offer the fan and temperature readings GiENEMY needs.",
+  unreachable: "The fans cannot be reached right now: {error}",
+
   klTitle: "KeyboardLight is still installed",
   klBody: "Both drive the same fans and undo each other's settings. Uninstall KeyboardLight.",
 

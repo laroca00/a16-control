@@ -9,9 +9,9 @@ On the test machine, Max Fan took both fans from about 4,400/4,900 RPM to 6,380 
 ## What it does
 
 - Max Fan on and off, from the tray panel or the main window
-- Live fan speed (both fans), CPU and GPU temperature, and fan duty
+- Live speed of both fans and CPU and GPU temperature
 - Turkish and English interface, picked from the Windows language on first start
-- Starts at sign-in without a UAC prompt after a one-time setup
+- Starts at sign-in without a UAC prompt
 
 Power modes, keyboard lighting and display controls are planned for later versions.
 
@@ -22,9 +22,9 @@ Power modes, keyboard lighting and display controls are planned for later versio
 
 ## Install
 
-1. Download `GiENEMY_x.y.z_x64-setup.exe` from [Releases](../../releases) and run it.
-2. Open GiENEMY and press **Set up**. Windows asks for administrator approval once.
-3. The app restarts in the tray. Click the tray icon to open the panel.
+1. Download `GiENEMY_x.y.z_x64-setup.exe` from [Releases](../../releases) and run it. Windows asks for administrator approval once, during installation.
+2. Open GiENEMY from the Start menu. From then on it also starts at sign-in.
+3. Click the tray icon to open the panel.
 
 Max Fan stays on until you turn it off. When you quit GiENEMY with Max Fan on, it hands the fans back to the firmware first.
 
@@ -32,7 +32,7 @@ Max Fan stays on until you turn it off. When you quit GiENEMY with Max Fan on, i
 
 The BIOS exposes fan methods over ACPI-WMI (`root\WMI`, classes `GB_WMIACPI_Set` and `GB_WMIACPI_Get`). Max Fan turns the automatic fan governor off, sets a fixed duty of 100 on both fans and locks it. Turning it off releases the lock and switches the governor back on (`SetAutoFanStatus(1)`).
 
-Setup registers the WMI classes only where they are missing, so a fuller definition installed by Gigabyte's software is left alone. It also creates a scheduled task named `GiENEMY` that starts the app with administrator rights at sign-in, which is why no UAC prompt appears afterwards.
+The installer registers the WMI classes only where they are missing, so a fuller definition installed by Gigabyte's software is left alone. It also creates a scheduled task named `GiENEMY` that starts the app with administrator rights at sign-in, which is why no UAC prompt appears afterwards. Because that task runs elevated, GiENEMY installs into Program Files, where only administrators can change the files it starts.
 
 GiENEMY only calls these runtime WMI methods. It does not write to the BIOS, DMI or NVRAM, and it does not change CPU power limits.
 
@@ -40,7 +40,7 @@ If KeyboardLight or another tool that drives the same fans is installed, GiENEMY
 
 ## Uninstall
 
-Uninstall GiENEMY from Windows settings. The uninstaller removes the scheduled task and asks for administrator approval once. The WMI class definitions stay, because Gigabyte's own software uses them too.
+Uninstall GiENEMY from Windows settings. The uninstaller hands the fans back to the firmware, stops the app and removes the scheduled task. The WMI class definitions stay, because Gigabyte's own software uses them too.
 
 ## Build from source
 
@@ -67,6 +67,6 @@ Not affiliated with or endorsed by GIGABYTE. GIGABYTE and AORUS are trademarks o
 
 GiENEMY, Gigabyte GAMING A16 (3VH) için fan kontrolü sağlar. Bu modelde GiMATE fan ayarlarını göstermiyor, fanlar firmware eğrisine göre dönüyor ve uzun oyunlarda işlemci ısınıp yavaşlıyor. GiENEMY aynı firmware arayüzüne doğrudan bağlanır ve tray'e bir Max Fan düğmesi ekler.
 
-Kurulum için [Releases](../../releases) sayfasından installer'ı indir, çalıştır, uygulamayı açıp **Kur**'a bas. Windows bir kez yönetici onayı ister. Sonrasında uygulama oturum açılınca sormadan başlar.
+Kurulum için [Releases](../../releases) sayfasından installer'ı indirip çalıştır. Windows kurulum sırasında bir kez yönetici onayı ister. Sonrasında uygulama oturum açılınca sormadan başlar.
 
 Max Fan sen kapatana kadar açık kalır. Max Fan açıkken uygulamadan çıkarsan fanlar önce otomatik moda döner. GiENEMY BIOS'a, DMI'a ya da işlemci güç limitlerine dokunmaz.

@@ -21,7 +21,7 @@ vi.mock("../api", async (orig) => {
   };
 });
 
-const ready: SetupStatus = { elevated: true, task: true, wmiSet: true, wmiGet: true, keyboardLight: false };
+const ready: SetupStatus = { elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, keyboardLight: false };
 
 function renderPanel(status: SetupStatus) {
   vi.mocked(api.getSetupStatus).mockResolvedValue(status);
@@ -47,4 +47,16 @@ test("no notices when everything is in place", async () => {
   renderPanel(ready);
   await screen.findByRole("button", { name: "All settings" });
   expect(screen.queryByRole("button", { name: "Set up" })).not.toBeInTheDocument();
+});
+
+test("explains an unsupported sensor interface instead of offering setup", async () => {
+  renderPanel({ ...ready, wmiGet: false, getClass: true });
+  expect(await screen.findByText("This laptop's sensor interface is not supported")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Set up" })).not.toBeInTheDocument();
+});
+
+test("shows why the fans cannot be reached", async () => {
+  vi.mocked(api.getTelemetry).mockRejectedValueOnce("firmware interface unavailable: no instance");
+  renderPanel(ready);
+  expect(await screen.findByText(/no instance/)).toBeInTheDocument();
 });
