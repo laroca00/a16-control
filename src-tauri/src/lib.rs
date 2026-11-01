@@ -1,4 +1,5 @@
 pub mod afterburner;
+pub mod battery;
 pub mod cli;
 pub mod commands;
 pub mod config;
