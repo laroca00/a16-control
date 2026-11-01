@@ -1,6 +1,6 @@
 [package]
 name = "gienemy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fan, keyboard and power control for the Gigabyte GAMING A16"
 authors = ["laroca00"]
 edition = "2021"
