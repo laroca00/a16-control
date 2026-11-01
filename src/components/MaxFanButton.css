@@ -1,0 +1,102 @@
+.fan-dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 216px;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, rgb(255 255 255 / 0.14), rgb(11 24 70 / 0.35) 62%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    0 18px 40px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+  transition:
+    transform var(--duration-quick) var(--ease),
+    box-shadow var(--duration-standard) var(--ease);
+}
+
+.fan-dial:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.fan-dial:disabled {
+  cursor: default;
+}
+
+.fan-dial--on {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 0 1px rgb(214 180 106 / 0.35),
+    0 18px 48px rgb(210 65 47 / 0.45);
+}
+
+.fan-dial__rings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.fan-dial__track,
+.fan-dial__level {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+}
+
+.fan-dial__track {
+  stroke: rgb(255 255 255 / 0.1);
+}
+
+.fan-dial__level {
+  stroke: var(--turquoise);
+  transition:
+    stroke-dasharray var(--duration-slow) var(--ease),
+    stroke var(--duration-standard) var(--ease);
+}
+
+.fan-dial--on .fan-dial__level {
+  stroke: url(#fan-hot);
+}
+
+.fan-dial__face {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.fan-dial__name {
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.fan-dial__state {
+  font-size: 0.9375rem;
+  color: var(--glaze-muted);
+}
+
+.fan-dial--on .fan-dial__state {
+  color: var(--gilt);
+}
+
+.fan-dial--busy .fan-dial__state {
+  animation: fan-dial-pulse 1.2s ease-in-out infinite;
+}
+
+.fan-dial__rpm {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--glaze-faint);
+}
+
+@keyframes fan-dial-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
