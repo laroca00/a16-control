@@ -130,7 +130,7 @@ fn set_mode_from_tray(app: &AppHandle, mode: UiMode) {
     let app = app.clone();
     // Applying a mode spawns processes; keep the menu thread free.
     std::thread::spawn(move || {
-        app.state::<AppState>().power.lock().unwrap().controller.set_mode(mode);
+        app.state::<AppState>().choose_mode(mode);
         crate::power_tick(&app);
         sync_power(&app, mode);
     });

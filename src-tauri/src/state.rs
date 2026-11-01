@@ -24,12 +24,17 @@ pub struct AppState {
     pub fan_lock: Mutex<()>,
     pub config: Mutex<Config>,
     pub power: Mutex<PowerState>,
+    /// Fan mode the user picked by hand; automatic power decisions keep it.
+    pub manual_fan: Mutex<Option<FanMode>>,
 }
 
 pub struct PowerState {
     pub controller: Controller,
     pub last: Option<Decision>,
     pub error: Option<String>,
+    /// When the last apply failed; retries wait a little so a broken lever
+    /// does not respawn powercfg every tick.
+    pub failed_at: Option<std::time::Instant>,
 }
 
 impl AppState {
@@ -44,7 +49,8 @@ impl AppState {
             last_attempt: Mutex::new(None),
             retry_every,
             fan_lock: Mutex::new(()),
-            power: Mutex::new(PowerState { controller: Controller::new(config.power_mode), last: None, error: None }),
+            manual_fan: Mutex::new(None),
+            power: Mutex::new(PowerState { controller: Controller::new(config.power_mode), last: None, error: None, failed_at: None }),
             config: Mutex::new(config),
         }
     }
@@ -83,6 +89,12 @@ impl AppState {
 }
 
 impl AppState {
+    /// An explicit power mode choice; it also ends any manual fan override.
+    pub fn choose_mode(&self, mode: power::UiMode) {
+        *self.manual_fan.lock().unwrap() = None;
+        self.power.lock().unwrap().controller.set_mode(mode);
+    }
+
     pub fn power_view(&self) -> PowerView {
         let options = self.config.lock().unwrap().power_options();
         let p = self.power.lock().unwrap();
@@ -93,6 +105,7 @@ impl AppState {
 pub fn set_fan(state: &AppState, mode: FanMode) -> Result<Telemetry, String> {
     let wmi = state.wmi()?;
     let _guard = state.fan_lock.lock().unwrap();
+    *state.manual_fan.lock().unwrap() = Some(mode);
     fan::apply(wmi.as_ref(), mode).map_err(|e| e.to_string())?;
     telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())
 }

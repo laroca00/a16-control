@@ -114,9 +114,19 @@ pub fn profile(id: ProfileId) -> Profile {
     }
 }
 
+/// Fan mode to write for a decision. A Max Fan toggled by hand stays until the
+/// user picks a power mode; automatic decisions (plug, battery level, games)
+/// do not override it.
+pub fn effective_fan(profile_fan: FanMode, manual: Option<FanMode>, reason: Reason) -> FanMode {
+    match reason {
+        Reason::UserBattery | Reason::UserPerformance => profile_fan,
+        _ => manual.unwrap_or(profile_fan),
+    }
+}
+
 /// Writes the firmware half of a profile. Every lever is attempted even if an
 /// earlier one fails, so a rejected power limit still leaves the fans right.
-pub fn apply_firmware(wmi: &dyn GbWmi, p: &Profile) -> Result<(), HwError> {
+pub fn apply_firmware(wmi: &dyn GbWmi, p: &Profile, fan: FanMode) -> Result<(), HwError> {
     let l = clamp(p.limits);
     let mut writes = vec![("SetNvPowerConfig", p.nv_boost)];
     if APU_WRITES {
@@ -128,7 +138,7 @@ pub fn apply_firmware(wmi: &dyn GbWmi, p: &Profile) -> Result<(), HwError> {
             first_err.get_or_insert(e);
         }
     }
-    if let Err(e) = fan::apply(wmi, p.fan) {
+    if let Err(e) = fan::apply(wmi, fan) {
         first_err.get_or_insert(e);
     }
     first_err.map_or(Ok(()), Err)
@@ -182,21 +192,22 @@ pub struct Decision {
 const ACDC_SETTLE: Duration = Duration::from_secs(4);
 const LOW_BATTERY_PCT: u8 = 20;
 const GAME_GPU_PCT: f32 = 40.0;
-// Ticks without a game before Auto drops back, so a loading screen does not flip it.
-const GAME_MISSES: u8 = 2;
+// Time without a game before Auto drops back, so an alt-tab or a loading
+// screen does not flip the profile.
+const GAME_EXIT: Duration = Duration::from_secs(30);
 
 pub struct Controller {
     mode: UiMode,
     on_ac: Option<bool>,
     pending_ac: Option<(bool, Instant)>,
     game_on: bool,
-    game_misses: u8,
+    game_seen: Option<Instant>,
     last: Option<(ProfileId, bool)>,
 }
 
 impl Controller {
     pub fn new(mode: UiMode) -> Self {
-        Controller { mode, on_ac: None, pending_ac: None, game_on: false, game_misses: 0, last: None }
+        Controller { mode, on_ac: None, pending_ac: None, game_on: false, game_seen: None, last: None }
     }
 
     pub fn mode(&self) -> UiMode {
@@ -206,6 +217,12 @@ impl Controller {
     /// An explicit choice always re-applies, even if the profile is unchanged.
     pub fn set_mode(&mut self, mode: UiMode) {
         self.mode = mode;
+        self.last = None;
+    }
+
+    /// Forgets what was applied, so the next tick applies again; used when
+    /// applying failed (for example WMI not ready yet at sign-in).
+    pub fn invalidate(&mut self) {
         self.last = None;
     }
 
@@ -242,19 +259,15 @@ impl Controller {
     fn track_game(&mut self, i: &Inputs, o: &Options) {
         if self.mode != UiMode::Auto || !o.auto_game || !self.ac() {
             self.game_on = false;
-            self.game_misses = 0;
+            self.game_seen = None;
             return;
         }
-        let gaming = i.fullscreen && i.gpu_util.is_some_and(|u| u >= GAME_GPU_PCT);
-        if gaming {
+        if i.fullscreen && i.gpu_util.is_some_and(|u| u >= GAME_GPU_PCT) {
             self.game_on = true;
-            self.game_misses = 0;
-        } else if self.game_on {
-            self.game_misses += 1;
-            if self.game_misses >= GAME_MISSES {
-                self.game_on = false;
-                self.game_misses = 0;
-            }
+            self.game_seen = Some(i.now);
+        } else if self.game_on && self.game_seen.is_some_and(|t| i.now.duration_since(t) >= GAME_EXIT) {
+            self.game_on = false;
+            self.game_seen = None;
         }
     }
 
@@ -270,7 +283,7 @@ impl Controller {
                     d(ProfileId::Battery, false, Reason::AutoDc)
                 }
             }
-            UiMode::Auto if self.game_on => d(ProfileId::Performance, true, Reason::AutoGame),
+            UiMode::Auto if self.game_on => d(ProfileId::Performance, false, Reason::AutoGame),
             UiMode::Auto => d(ProfileId::BalancedAc, false, Reason::AutoAc),
         }
     }
@@ -322,9 +335,10 @@ pub fn with_option(mut o: Options, key: &str, value: bool) -> Result<Options, St
 
 /// Applies a decision: firmware first, then the Windows levers. Firmware
 /// errors are reported but do not stop the rest.
-pub fn apply_decision(wmi: &dyn GbWmi, d: &Decision) -> Result<(), String> {
+pub fn apply_decision(wmi: Result<&dyn GbWmi, String>, d: &Decision, fan: FanMode) -> Result<(), String> {
     let p = profile(d.profile);
-    let firmware = apply_firmware(wmi, &p).map_err(|e| e.to_string());
+    // The Windows levers do not need the firmware; apply them either way.
+    let firmware = wmi.and_then(|w| apply_firmware(w, &p, fan).map_err(|e| e.to_string()));
     os::set_overlay(p.overlay);
     if d.displays {
         os::set_refresh(p.refresh);
@@ -397,13 +411,33 @@ mod tests {
         }
 
         #[test]
-        fn game_end_needs_two_misses() {
+        fn game_end_waits_thirty_seconds() {
+            let mut c = Controller::new(UiMode::Auto);
+            let t0 = Instant::now();
+            let gaming = Inputs { fullscreen: true, gpu_util: Some(75.0), ..inputs(t0, true, 90) };
+            c.tick(&gaming, &GAME);
+            // An alt-tab to chat must not drop the boost.
+            assert!(c.tick(&inputs(t0 + Duration::from_secs(10), true, 90), &GAME).is_none());
+            assert_eq!(c.tick(&inputs(t0 + Duration::from_secs(31), true, 90), &GAME).unwrap().profile, ProfileId::BalancedAc);
+        }
+
+        #[test]
+        fn auto_game_leaves_displays_alone() {
             let mut c = Controller::new(UiMode::Auto);
             let now = Instant::now();
+            c.tick(&inputs(now, true, 90), &GAME);
             let gaming = Inputs { fullscreen: true, gpu_util: Some(75.0), ..inputs(now, true, 90) };
-            c.tick(&gaming, &GAME);
-            assert!(c.tick(&inputs(now, true, 90), &GAME).is_none());
-            assert_eq!(c.tick(&inputs(now, true, 90), &GAME).unwrap().profile, ProfileId::BalancedAc);
+            // A display mode change under an exclusive-fullscreen game can minimise it.
+            assert!(!c.tick(&gaming, &GAME).unwrap().displays);
+        }
+
+        #[test]
+        fn invalidate_reapplies_next_tick() {
+            let mut c = Controller::new(UiMode::Performance);
+            let now = Instant::now();
+            assert!(c.tick(&inputs(now, true, 90), &OFF).is_some());
+            c.invalidate();
+            assert!(c.tick(&inputs(now, true, 90), &OFF).is_some());
         }
 
         #[test]
@@ -455,6 +489,14 @@ mod tests {
     }
 
     #[test]
+    fn manual_fan_choice_survives_automatic_decisions() {
+        assert_eq!(effective_fan(FanMode::Auto, Some(FanMode::Max), Reason::AutoAc), FanMode::Max);
+        assert_eq!(effective_fan(FanMode::Max, Some(FanMode::Auto), Reason::AutoGame), FanMode::Auto);
+        assert_eq!(effective_fan(FanMode::Max, Some(FanMode::Auto), Reason::UserPerformance), FanMode::Max);
+        assert_eq!(effective_fan(FanMode::Auto, None, Reason::AutoDc), FanMode::Auto);
+    }
+
+    #[test]
     fn power_view_reports_limits_of_current_profile() {
         let d = Decision { profile: ProfileId::Performance, displays: true, reason: Reason::UserPerformance };
         let opts = Options { auto_game: true, acdc_switch: false };
@@ -493,7 +535,7 @@ mod tests {
     #[test]
     fn performance_writes_boost_then_max_fan() {
         let w = FakeWmi::default();
-        apply_firmware(&w, &profile(ProfileId::Performance)).unwrap();
+        apply_firmware(&w, &profile(ProfileId::Performance), profile(ProfileId::Performance).fan).unwrap();
         let calls = w.calls();
         assert_eq!(calls[0], ("SetNvPowerConfig".to_string(), 1));
         assert_eq!(calls.last().unwrap(), &("SetFixedFanStatus".to_string(), 1));
@@ -503,7 +545,7 @@ mod tests {
     fn apu_limits_are_not_written_until_verified() {
         for id in ALL {
             let w = FakeWmi::default();
-            apply_firmware(&w, &profile(id)).unwrap();
+            apply_firmware(&w, &profile(id), profile(id).fan).unwrap();
             assert!(w.calls().iter().all(|(m, _)| !m.starts_with("SetApuParameter")), "{id:?}");
         }
     }
@@ -511,7 +553,7 @@ mod tests {
     #[test]
     fn apply_continues_after_boost_failure() {
         let w = FakeWmi::failing_on("SetNvPowerConfig");
-        assert!(apply_firmware(&w, &profile(ProfileId::Battery)).is_err());
+        assert!(apply_firmware(&w, &profile(ProfileId::Battery), profile(ProfileId::Battery).fan).is_err());
         assert_eq!(w.calls().last().unwrap().0, "SetAutoFanStatus");
     }
 }

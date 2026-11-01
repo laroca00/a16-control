@@ -91,7 +91,7 @@ pub fn get_power(state: State<'_, AppState>) -> PowerView {
 pub async fn set_power_mode(app: AppHandle, mode: UiMode) -> Result<PowerView, String> {
     joined(
         spawn_blocking(move || {
-            app.state::<AppState>().power.lock().unwrap().controller.set_mode(mode);
+            app.state::<AppState>().choose_mode(mode);
             crate::power_tick(&app);
             app.state::<AppState>().power_view()
         })

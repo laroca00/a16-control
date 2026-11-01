@@ -83,6 +83,8 @@ fn any_window_visible(app: &AppHandle) -> bool {
 
 /// Collects the power inputs, lets the controller decide and applies the
 /// result. Runs on every background tick and right after the user picks a mode.
+const POWER_RETRY: Duration = Duration::from_secs(10);
+
 pub fn power_tick(app: &AppHandle) {
     let st = app.state::<AppState>();
     let options = st.config.lock().unwrap().power_options();
@@ -93,15 +95,24 @@ pub fn power_tick(app: &AppHandle) {
     if wants_gpu {
         inputs.gpu_util = os::gpu_3d_util();
     }
+    // One apply at a time, and never interleaved with a Max Fan toggle: the
+    // fan sequences must not mix, and a slow apply must not land after a
+    // newer user choice.
+    let _apply = st.fan_lock.lock().unwrap();
     let (decision, mode) = {
         let mut p = st.power.lock().unwrap();
+        if p.failed_at.is_some_and(|t| t.elapsed() < POWER_RETRY) {
+            return;
+        }
         let d = p.controller.tick(&inputs, &options);
         (d, p.controller.mode())
     };
     persist_mode(&st, mode);
     let Some(decision) = decision else { return };
-    // Applying spawns powercfg and touches the display, so no lock is held.
-    let result = st.wmi().and_then(|w| power::apply_decision(w.as_ref(), &decision));
+    let manual = *st.manual_fan.lock().unwrap();
+    let fan = power::effective_fan(power::profile(decision.profile).fan, manual, decision.reason);
+    let wmi = st.wmi();
+    let result = power::apply_decision(wmi.as_deref().map_err(Clone::clone), &decision, fan);
     let (ab, igpu) = {
         let cfg = st.config.lock().unwrap();
         (cfg.afterburner, cfg.igpu_on_battery)
@@ -114,6 +125,11 @@ pub fn power_tick(app: &AppHandle) {
     {
         let mut p = st.power.lock().unwrap();
         p.last = Some(decision);
+        p.failed_at = None;
+        if result.is_err() {
+            p.controller.invalidate();
+            p.failed_at = Some(std::time::Instant::now());
+        }
         p.error = result.err();
     }
     tray::sync_power(app, mode);

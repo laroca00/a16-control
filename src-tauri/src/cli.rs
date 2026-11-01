@@ -85,7 +85,7 @@ fn execute(args: &[String]) -> Result<String, String> {
                 other => return Err(format!("unknown power mode {other:?}, use battery, balanced or performance")),
             };
             let decision = Decision { profile, displays: true, reason: Reason::UserBattery };
-            power::apply_decision(&wmi, &decision)?;
+            power::apply_decision(Ok(&wmi), &decision, power::profile(profile).fan)?;
             probe(&wmi)
         }
         _ => Err("usage: GiENEMY.exe --probe | --fan max|auto | --power battery|balanced|performance".into()),
