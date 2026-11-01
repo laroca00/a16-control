@@ -4,6 +4,7 @@ pub mod config;
 pub mod elevation;
 pub mod fan;
 pub mod hw;
+pub mod os;
 pub mod power;
 pub mod setup;
 pub mod state;

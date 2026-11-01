@@ -163,6 +163,36 @@ pub fn class_methods(class: &str) -> Result<Vec<String>, HwError> {
     .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
 }
 
+/// Sets the internal panel's brightness (0-100) through the monitor's WMI
+/// brightness methods, which live in the same namespace as the firmware.
+pub fn set_brightness(pct: u32) -> Result<(), HwError> {
+    const CLASS: &str = "WmiMonitorBrightnessMethods";
+    const METHOD: &str = "WmiSetBrightness";
+    thread::spawn(move || unsafe {
+        let svc = connect_services()?;
+        let class = class_object(&svc, CLASS)?;
+        let path = first_instance_path(&svc, CLASS)?;
+        let mut in_sig: Option<IWbemClassObject> = None;
+        class
+            .GetMethod(&HSTRING::from(METHOD), 0, &mut in_sig, std::ptr::null_mut())
+            .map_err(|e| call_err(METHOD, e.message()))?;
+        let input = in_sig
+            .ok_or_else(|| call_err(METHOD, "method has no input"))?
+            .SpawnInstance(0)
+            .map_err(|e| call_err(METHOD, e.message()))?;
+        input
+            .Put(&HSTRING::from("Timeout"), 0, &VARIANT::from(0i32), 0)
+            .map_err(|e| call_err(METHOD, e.message()))?;
+        input
+            .Put(&HSTRING::from("Brightness"), 0, &VARIANT::from(pct.min(100) as u8), 0)
+            .map_err(|e| call_err(METHOD, e.message()))?;
+        svc.ExecMethod(&path, &BSTR::from(METHOD), WBEM_FLAG_RETURN_WBEM_COMPLETE, None, &input, None, None)
+            .map_err(|e| call_err(METHOD, e.message()))
+    })
+    .join()
+    .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
+}
+
 impl Session {
     fn open() -> Result<Session, HwError> {
         unsafe {
