@@ -157,13 +157,15 @@ pub async fn set_refresh_rate(app: AppHandle, hz: u32) -> Result<DisplayView, St
     .await)
 }
 
+// Building a window from a synchronous command deadlocks on Windows, so
+// these run on the async runtime.
 #[tauri::command]
-pub fn screen_off(app: AppHandle) -> Result<(), String> {
+pub async fn screen_off(app: AppHandle) -> Result<(), String> {
     display::screen_off(&app)
 }
 
 #[tauri::command]
-pub fn screen_on(app: AppHandle) {
+pub async fn screen_on(app: AppHandle) {
     display::screen_on(&app);
 }
 
@@ -226,17 +228,21 @@ pub fn get_battery(app: AppHandle) -> BatteryView {
 }
 
 #[tauri::command]
-pub fn start_watch(app: AppHandle) -> Result<BatteryView, String> {
-    battery_ctl::start(&app)
+pub async fn start_watch(app: AppHandle) -> Result<BatteryView, String> {
+    joined(spawn_blocking(move || battery_ctl::start(&app)).await)?
 }
 
 #[tauri::command]
-pub fn cancel_watch(app: AppHandle) -> BatteryView {
-    battery_ctl::cancel(&app)
+pub async fn cancel_watch(app: AppHandle) -> Result<BatteryView, String> {
+    joined(spawn_blocking(move || battery_ctl::cancel(&app)).await)
 }
 
 #[tauri::command]
-pub fn set_eco_enabled(app: AppHandle, on: bool) -> Result<BatteryView, String> {
+pub async fn set_eco_enabled(app: AppHandle, on: bool) -> Result<BatteryView, String> {
+    joined(spawn_blocking(move || set_eco_enabled_blocking(&app, on)).await)?
+}
+
+fn set_eco_enabled_blocking(app: &AppHandle, on: bool) -> Result<BatteryView, String> {
     {
         let st = app.state::<AppState>();
         let mut cfg = st.config.lock().unwrap();
@@ -244,9 +250,9 @@ pub fn set_eco_enabled(app: AppHandle, on: bool) -> Result<BatteryView, String> 
         config::save(&cfg)?;
     }
     if !on {
-        battery_ctl::release_all(&app);
+        battery_ctl::release_all(app);
     }
-    Ok(battery_ctl::view(&app))
+    Ok(battery_ctl::view(app))
 }
 
 #[tauri::command]
