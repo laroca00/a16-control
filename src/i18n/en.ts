@@ -22,4 +22,38 @@ export const en = {
 
   klTitle: "KeyboardLight is still installed",
   klBody: "Both drive the same fans and undo each other's settings. Uninstall KeyboardLight.",
+
+  navOverview: "Overview",
+  navFan: "Fan",
+  navPower: "Power",
+  navKeyboard: "Keyboard",
+  navDisplay: "Display",
+  navSettings: "Settings",
+
+  overviewFans: "Fans",
+  overviewTemps: "Temperatures",
+  fan1: "Fan 1",
+  fan2: "Fan 2",
+  statusMax: "Fans are locked at full speed. Turn Max Fan off when you finish playing.",
+  statusAuto: "The firmware is setting fan speed from temperature.",
+
+  fanHistory: "Last three minutes",
+  fanSpeedChart: "Fan speed",
+  tempChart: "Temperature",
+
+  soonTitle: "Coming in the next version",
+  soonPower: "Battery, Auto and Performance modes, game detection and the battery power plan come in the next version.",
+  soonKeyboard: "Keyboard colour, brightness, rainbow and shortcuts come in the next version.",
+  soonDisplay: "Screen brightness steps, refresh rate and screen off come in the next version.",
+
+  language: "Language",
+  setupChecks: "Setup",
+  checkElevated: "Running with administrator rights",
+  checkTask: "Starts at sign-in without asking",
+  checkWmiSet: "Fan control interface available",
+  checkWmiGet: "Sensor interface available",
+  checkKeyboardLight: "KeyboardLight is not installed",
+  uninstallTitle: "Remove GiENEMY",
+  uninstallBody: "Removes the sign-in task and closes the app. Uninstall it from Windows settings to delete the files.",
+  uninstallAction: "Remove",
 };

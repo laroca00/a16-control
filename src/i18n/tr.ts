@@ -24,4 +24,38 @@ export const tr: Record<keyof typeof en, string> = {
 
   klTitle: "KeyboardLight hâlâ yüklü",
   klBody: "İkisi aynı fanları yönetip birbirinin ayarını bozuyor. KeyboardLight'ı kaldır.",
+
+  navOverview: "Genel",
+  navFan: "Fan",
+  navPower: "Güç",
+  navKeyboard: "Klavye",
+  navDisplay: "Ekran",
+  navSettings: "Ayarlar",
+
+  overviewFans: "Fanlar",
+  overviewTemps: "Sıcaklıklar",
+  fan1: "Fan 1",
+  fan2: "Fan 2",
+  statusMax: "Fanlar tam devirde kilitli. Oyun bitince Max Fan'ı kapat.",
+  statusAuto: "Fan hızını sıcaklığa göre firmware ayarlıyor.",
+
+  fanHistory: "Son üç dakika",
+  fanSpeedChart: "Fan hızı",
+  tempChart: "Sıcaklık",
+
+  soonTitle: "Sonraki sürümde",
+  soonPower: "Pil, Auto ve Performans modları, oyun algılama ve pil güç planı sonraki sürümde geliyor.",
+  soonKeyboard: "Klavye rengi, parlaklık, gökkuşağı ve kısayollar sonraki sürümde geliyor.",
+  soonDisplay: "Parlaklık adımları, yenileme hızı ve ekranı kapatma sonraki sürümde geliyor.",
+
+  language: "Dil",
+  setupChecks: "Kurulum",
+  checkElevated: "Yönetici yetkisiyle çalışıyor",
+  checkTask: "Oturum açılınca sormadan başlıyor",
+  checkWmiSet: "Fan kontrol arayüzü hazır",
+  checkWmiGet: "Sensör arayüzü hazır",
+  checkKeyboardLight: "KeyboardLight yüklü değil",
+  uninstallTitle: "GiENEMY'yi kaldır",
+  uninstallBody: "Açılış görevini siler ve uygulamayı kapatır. Dosyaları silmek için Windows ayarlarından kaldır.",
+  uninstallAction: "Kaldır",
 };
