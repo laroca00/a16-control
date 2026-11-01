@@ -1,0 +1,69 @@
+@import "@fontsource-variable/geologica";
+
+:root {
+  --ink: #0b1846;
+  --cobalt: #2f55c8;
+  --turquoise: #1c9c92;
+  --glaze: #eef2ec;
+  --glaze-muted: rgb(238 242 236 / 0.74);
+  --glaze-faint: rgb(238 242 236 / 0.6);
+  --bole: #d2412f;
+  --gilt: #d6b46a;
+
+  /* Motion: one premium curve family, three durations. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --duration-quick: 120ms;
+  --duration-standard: 320ms;
+  --duration-slow: 640ms;
+
+  color-scheme: dark;
+  font-family: "Geologica Variable", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-synthesis: none;
+  color: var(--glaze);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ink);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* The panel window is transparent; its rounded card is the only thing drawn. */
+body.panel-window {
+  background: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gilt);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-quick: 0ms;
+    --duration-standard: 0ms;
+    --duration-slow: 0ms;
+  }
+}
