@@ -163,6 +163,25 @@ pub fn class_methods(class: &str) -> Result<Vec<String>, HwError> {
     .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
 }
 
+/// Current internal-panel brightness (0-100).
+pub fn get_brightness() -> Result<u32, HwError> {
+    thread::spawn(|| unsafe {
+        let svc = connect_services()?;
+        let instances = svc
+            .CreateInstanceEnum(&BSTR::from("WmiMonitorBrightness"), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, None)
+            .map_err(unavailable)?;
+        let mut objs = [None];
+        let mut returned = 0u32;
+        instances.Next(WBEM_INFINITE, &mut objs, &mut returned).ok().map_err(unavailable)?;
+        let obj = objs[0].take().filter(|_| returned == 1).ok_or_else(|| HwError::Unavailable("no monitor".into()))?;
+        let mut v = VARIANT::default();
+        obj.Get(&HSTRING::from("CurrentBrightness"), 0, &mut v, None, None).map_err(unavailable)?;
+        i32::try_from(&v).map(|b| b as u32).map_err(unavailable)
+    })
+    .join()
+    .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
+}
+
 /// Sets the internal panel's brightness (0-100) through the monitor's WMI
 /// brightness methods, which live in the same namespace as the firmware.
 pub fn set_brightness(pct: u32) -> Result<(), HwError> {

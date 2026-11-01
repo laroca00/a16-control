@@ -49,10 +49,6 @@ export const en = {
   fanSpeedChart: "Fan speed",
   tempChart: "Temperature",
 
-  soonTitle: "Coming in the next version",
-  soonPower: "Battery, Auto and Performance modes, game detection and the battery power plan come in the next version.",
-  soonKeyboard: "Keyboard colour, brightness, rainbow and shortcuts come in the next version.",
-  soonDisplay: "Screen brightness steps, refresh rate and screen off come in the next version.",
 
   modeBattery: "Battery",
   modeAuto: "Auto",
@@ -87,6 +83,11 @@ export const en = {
   presetBlue: "Blue",
   presetPurple: "Purple",
   presetPink: "Pink",
+  dispBrightness: "Screen brightness",
+  dispRefresh: "Refresh rate",
+  hzValue: "{value} Hz",
+  dispOff: "Turn screen off",
+  dispOffHint: "The screen goes black without sleeping or locking. Press any key or move the mouse to bring it back.",
   language: "Language",
   setupChecks: "Setup",
   checkElevated: "Running with administrator rights",

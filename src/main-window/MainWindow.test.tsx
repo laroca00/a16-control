@@ -54,12 +54,6 @@ test("sidebar navigates between pages", async () => {
   expect(screen.getByRole("heading", { level: 1, name: "Fan" })).toBeInTheDocument();
 });
 
-test.each(["Ekran"])("%s shows coming soon", async (name) => {
-  renderMain();
-  await userEvent.click(screen.getByRole("button", { name }));
-  expect(screen.getByText(/sonraki sürümde/)).toBeInTheDocument();
-});
-
 test("language switch updates labels", async () => {
   renderMain();
   await userEvent.click(screen.getByRole("button", { name: "Ayarlar" }));

@@ -17,6 +17,8 @@ use windows::Win32::System::Performance::{
     PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
 };
 use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+use windows::Win32::System::SystemInformation::GetTickCount;
+use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetDesktopWindow, GetForegroundWindow, GetShellWindow, GetWindowLongW, GetWindowRect, IsZoomed,
     GWL_STYLE, WS_CAPTION,
@@ -91,6 +93,34 @@ fn devmode() -> DEVMODEW {
 fn current_mode() -> Option<DEVMODEW> {
     let mut dm = devmode();
     unsafe { EnumDisplaySettingsW(PCWSTR::null(), ENUM_CURRENT_SETTINGS, &mut dm) }.as_bool().then_some(dm)
+}
+
+/// Refresh rates the panel offers at its current resolution, highest first.
+pub fn refresh_rates() -> Vec<u32> {
+    let Some(cur) = current_mode() else { return Vec::new() };
+    let mut rates = Vec::new();
+    let mut i = 0;
+    loop {
+        let mut dm = devmode();
+        if !unsafe { EnumDisplaySettingsW(PCWSTR::null(), ENUM_DISPLAY_SETTINGS_MODE(i), &mut dm) }.as_bool() {
+            break;
+        }
+        if (dm.dmPelsWidth, dm.dmPelsHeight) == (cur.dmPelsWidth, cur.dmPelsHeight) && !rates.contains(&dm.dmDisplayFrequency) {
+            rates.push(dm.dmDisplayFrequency);
+        }
+        i += 1;
+    }
+    rates.sort_unstable_by(|a, b| b.cmp(a));
+    rates
+}
+
+/// Time since the last keyboard or mouse input anywhere in the session.
+pub fn user_idle() -> Duration {
+    let mut lii = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+    if !unsafe { GetLastInputInfo(&mut lii) }.as_bool() {
+        return Duration::ZERO;
+    }
+    Duration::from_millis(unsafe { GetTickCount() }.wrapping_sub(lii.dwTime) as u64)
 }
 
 pub fn current_refresh() -> Option<u32> {

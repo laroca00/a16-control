@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod display;
 pub mod elevation;
 pub mod fan;
 pub mod hw;
@@ -43,6 +44,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
         .plugin(keyboard_ctl::shortcut_plugin())
         .manage(state)
         .manage(keyboard)
+        .manage(display::DisplayState::default())
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -121,6 +123,7 @@ fn spawn_background(app: AppHandle) {
             tray::show_main(&app);
         }
         power_tick(&app);
+        display::watch(&app);
         if any_window_visible(&app) {
             match app.state::<AppState>().telemetry() {
                 Ok(t) => {

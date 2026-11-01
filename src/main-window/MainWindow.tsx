@@ -2,10 +2,10 @@ import { useState } from "react";
 import { TitleBar } from "../components/TitleBar";
 import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../components/Notices";
 import { useFanControl } from "../hooks/useFanControl";
-import { ComingSoon } from "../pages/ComingSoon";
 import { FanPage } from "../pages/FanPage";
 import { PowerPage } from "../pages/PowerPage";
 import { KeyboardPage } from "../pages/KeyboardPage";
+import { DisplayPage } from "../pages/DisplayPage";
 import { Overview } from "../pages/Overview";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ShaderGradient } from "../ui/ShaderGradient";
@@ -34,7 +34,7 @@ export function MainWindow() {
           {page === "fan" && <FanPage control={control} />}
           {page === "power" && <PowerPage />}
           {page === "keyboard" && <KeyboardPage />}
-          {page === "display" && <ComingSoon title="navDisplay" body="soonDisplay" />}
+          {page === "display" && <DisplayPage />}
           {page === "settings" && <SettingsPage status={control.status} />}
         </div>
       </main>

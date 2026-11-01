@@ -51,10 +51,6 @@ export const tr: Record<keyof typeof en, string> = {
   fanSpeedChart: "Fan hızı",
   tempChart: "Sıcaklık",
 
-  soonTitle: "Sonraki sürümde",
-  soonPower: "Pil, Auto ve Performans modları, oyun algılama ve pil güç planı sonraki sürümde geliyor.",
-  soonKeyboard: "Klavye rengi, parlaklık, gökkuşağı ve kısayollar sonraki sürümde geliyor.",
-  soonDisplay: "Parlaklık adımları, yenileme hızı ve ekranı kapatma sonraki sürümde geliyor.",
 
   modeBattery: "Pil",
   modeAuto: "Auto",
@@ -89,6 +85,11 @@ export const tr: Record<keyof typeof en, string> = {
   presetBlue: "Mavi",
   presetPurple: "Mor",
   presetPink: "Pembe",
+  dispBrightness: "Ekran parlaklığı",
+  dispRefresh: "Yenileme hızı",
+  hzValue: "{value} Hz",
+  dispOff: "Ekranı kapat",
+  dispOffHint: "Ekran uyku ya da kilit olmadan kararır. Geri getirmek için bir tuşa bas ya da fareyi oynat.",
   language: "Dil",
   setupChecks: "Kurulum",
   checkElevated: "Yönetici yetkisiyle çalışıyor",

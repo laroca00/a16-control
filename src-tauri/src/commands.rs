@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
+use crate::display::{self, DisplayView};
 use crate::fan::FanMode;
 use crate::keyboard::KeyboardView;
 use crate::keyboard_ctl::{self, KeyboardCtl};
@@ -130,6 +131,39 @@ pub fn set_keyboard_rainbow(app: AppHandle, on: bool) -> KeyboardView {
 }
 
 #[tauri::command]
+pub async fn get_display(app: AppHandle) -> Result<DisplayView, String> {
+    joined(spawn_blocking(move || display::view(&app)).await)
+}
+
+#[tauri::command]
+pub async fn set_brightness(app: AppHandle, value: u32) -> Result<DisplayView, String> {
+    joined(spawn_blocking(move || {
+        display::set_brightness(value);
+        display::view(&app)
+    })
+    .await)
+}
+
+#[tauri::command]
+pub async fn set_refresh_rate(app: AppHandle, hz: u32) -> Result<DisplayView, String> {
+    joined(spawn_blocking(move || {
+        display::set_refresh(hz);
+        display::view(&app)
+    })
+    .await)
+}
+
+#[tauri::command]
+pub fn screen_off(app: AppHandle) -> Result<(), String> {
+    display::screen_off(&app)
+}
+
+#[tauri::command]
+pub fn screen_on(app: AppHandle) {
+    display::screen_on(&app);
+}
+
+#[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
 }
@@ -173,6 +207,11 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         set_keyboard_color,
         set_keyboard_brightness,
         set_keyboard_rainbow,
+        get_display,
+        set_brightness,
+        set_refresh_rate,
+        screen_off,
+        screen_on,
         open_main,
         quit_app
     ]
