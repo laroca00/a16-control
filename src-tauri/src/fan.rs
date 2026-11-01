@@ -31,14 +31,29 @@ pub const AUTO_SEQUENCE: [(&str, u32); 4] = [
 ];
 
 pub fn apply(wmi: &dyn GbWmi, mode: FanMode) -> Result<(), HwError> {
-    let seq: &[(&str, u32)] = match mode {
-        FanMode::Max => &MAX_SEQUENCE,
-        FanMode::Auto => &AUTO_SEQUENCE,
-    };
-    for (method, value) in seq {
-        wmi.set(method, *value)?;
+    match mode {
+        FanMode::Max => {
+            for (method, value) in MAX_SEQUENCE {
+                if let Err(e) = wmi.set(method, value) {
+                    // A half-applied Max can leave the governor off with no
+                    // fixed duty, which slows the fans; hand them back.
+                    let _ = apply(wmi, FanMode::Auto);
+                    return Err(e);
+                }
+            }
+            Ok(())
+        }
+        FanMode::Auto => {
+            // Every step is attempted so the governor always gets switched back on.
+            let mut first_err = None;
+            for (method, value) in AUTO_SEQUENCE {
+                if let Err(e) = wmi.set(method, value) {
+                    first_err.get_or_insert(e);
+                }
+            }
+            first_err.map_or(Ok(()), Err)
+        }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -79,9 +94,18 @@ mod tests {
     }
 
     #[test]
-    fn apply_stops_on_first_error() {
+    fn failed_max_falls_back_to_auto() {
         let w = FakeWmi::failing_on("SetFixedFanSpeed");
         assert!(apply(&w, FanMode::Max).is_err());
-        assert_eq!(w.calls().len(), 2);
+        // The governor was already off; it must not be left that way.
+        assert_eq!(w.calls().last().unwrap(), &("SetAutoFanStatus".to_string(), 1));
+    }
+
+    #[test]
+    fn auto_reaches_governor_even_if_a_step_fails() {
+        let w = FakeWmi::failing_on("SetStepFanStatus");
+        assert!(apply(&w, FanMode::Auto).is_err());
+        assert_eq!(w.calls().last().unwrap(), &("SetAutoFanStatus".to_string(), 1));
+        assert_eq!(w.calls().len(), 3);
     }
 }
