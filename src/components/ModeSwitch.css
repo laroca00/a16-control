@@ -1,0 +1,72 @@
+.mode-switch {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.mode-switch__track {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgb(11 24 70 / 0.45);
+}
+
+.mode-switch__item {
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--glaze-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    background var(--duration-standard) var(--ease),
+    color var(--duration-quick) var(--ease),
+    box-shadow var(--duration-standard) var(--ease);
+}
+
+.mode-switch__item:hover:not(:disabled) {
+  color: var(--glaze);
+}
+
+.mode-switch__item:disabled {
+  cursor: default;
+}
+
+/* Each mode keeps its own colour so the choice reads at a glance. */
+.mode-switch__item--on {
+  color: var(--glaze);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+
+.mode-switch__item--battery.mode-switch__item--on {
+  background: var(--turquoise);
+}
+
+.mode-switch__item--auto.mode-switch__item--on {
+  background: var(--cobalt);
+}
+
+.mode-switch__item--performance.mode-switch__item--on {
+  background: var(--bole);
+}
+
+.mode-switch__reason {
+  margin: 0;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--glaze-faint);
+}
+
+.mode-switch--large .mode-switch__item {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.mode-switch--large .mode-switch__reason {
+  font-size: 0.9375rem;
+  text-align: left;
+}

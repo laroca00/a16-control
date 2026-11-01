@@ -18,6 +18,18 @@ vi.mock("../api", async (orig) => {
         Promise.resolve({ rpm1: 4400, rpm2: 4900, cpuTemp: 70, gpuTemp: 60, cpuDuty: 50, gpuDuty: 50, fanMode: "auto" }),
       ),
       setFan: vi.fn(),
+      getPower: vi.fn(() =>
+        Promise.resolve({
+          mode: "auto",
+          profile: "balancedAc",
+          reason: "autoAc",
+          limits: { fppt: 80000, sppt: 65000, spl: 25000 },
+          options: { autoGame: false, acdcSwitch: true },
+          lastError: null,
+        }),
+      ),
+      setPowerMode: vi.fn(),
+      setPowerOption: vi.fn(),
       runInstall: vi.fn(),
       runUninstall: vi.fn(() => Promise.resolve()),
       openMain: vi.fn(),
@@ -41,7 +53,7 @@ test("sidebar navigates between pages", async () => {
   expect(screen.getByRole("heading", { level: 1, name: "Fan" })).toBeInTheDocument();
 });
 
-test.each(["Güç", "Klavye", "Ekran"])("%s shows coming soon", async (name) => {
+test.each(["Klavye", "Ekran"])("%s shows coming soon", async (name) => {
   renderMain();
   await userEvent.click(screen.getByRole("button", { name }));
   expect(screen.getByText(/sonraki sürümde/)).toBeInTheDocument();

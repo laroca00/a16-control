@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { api } from "../api";
 import { MaxFanButton } from "../components/MaxFanButton";
+import { ModeSwitch } from "../components/ModeSwitch";
+import { usePower } from "../hooks/usePower";
 import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../components/Notices";
 import { useFanControl } from "../hooks/useFanControl";
 import { useT } from "../i18n";
@@ -11,6 +13,7 @@ import "./panel.css";
 export function QuickPanel() {
   const t = useT();
   const { telemetry, status, needsSetup, unsupported, unreachable, busy, error, toggle } = useFanControl();
+  const { power, setMode } = usePower();
 
   useEffect(() => {
     document.body.classList.add("panel-window");
@@ -40,6 +43,7 @@ export function QuickPanel() {
                 <dd>{telemetry ? t("tempValue", { value: telemetry.gpuTemp }) : "–"}</dd>
               </div>
             </dl>
+            <ModeSwitch power={power} onChange={setMode} />
             {error && <p className="panel__error">{t("errorGeneric", { error })}</p>}
             {!error && unreachable && <p className="panel__error">{t("unreachable", { error: unreachable })}</p>}
           </>

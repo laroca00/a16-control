@@ -11,6 +11,18 @@ vi.mock("../api", async (orig) => {
     ...real,
     api: {
       getSetupStatus: vi.fn(),
+      getPower: vi.fn(() =>
+        Promise.resolve({
+          mode: "auto",
+          profile: "balancedAc",
+          reason: "autoAc",
+          limits: { fppt: 80000, sppt: 65000, spl: 25000 },
+          options: { autoGame: false, acdcSwitch: true },
+          lastError: null,
+        }),
+      ),
+      setPowerMode: vi.fn(),
+      setPowerOption: vi.fn(),
       getTelemetry: vi.fn(() => Promise.reject("setup")),
       setFan: vi.fn(),
       runInstall: vi.fn(() => Promise.resolve()),
@@ -59,4 +71,9 @@ test("shows why the fans cannot be reached", async () => {
   vi.mocked(api.getTelemetry).mockRejectedValueOnce("firmware interface unavailable: no instance");
   renderPanel(ready);
   expect(await screen.findByText(/no instance/)).toBeInTheDocument();
+});
+
+test("panel shows current reason", async () => {
+  renderPanel(ready);
+  expect(await screen.findByText("Plugged in, balanced")).toBeInTheDocument();
 });

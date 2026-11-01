@@ -24,6 +24,21 @@ export type SetupStatus = {
 
 export type Config = { lang: string | null };
 
+export type UiMode = "battery" | "auto" | "performance";
+export type ProfileId = "battery" | "balancedAc" | "balancedDc" | "performance";
+export type Reason = "userBattery" | "userPerformance" | "autoAc" | "autoDc" | "autoLowBattery" | "autoGame";
+export type PowerOptions = { autoGame: boolean; acdcSwitch: boolean };
+
+export type PowerView = {
+  mode: UiMode;
+  profile: ProfileId | null;
+  reason: Reason | null;
+  /** APU limits in milliwatts. */
+  limits: { fppt: number; sppt: number; spl: number } | null;
+  options: PowerOptions;
+  lastError: string | null;
+};
+
 /** Error text the backend uses when the firmware interface is not set up. */
 export const SETUP_NEEDED = "setup";
 
@@ -37,4 +52,7 @@ export const api = {
   setLang: (lang: string) => invoke<void>("set_lang", { lang }),
   openMain: () => invoke<void>("open_main"),
   quitApp: () => invoke<void>("quit_app"),
+  getPower: () => invoke<PowerView>("get_power"),
+  setPowerMode: (mode: UiMode) => invoke<PowerView>("set_power_mode", { mode }),
+  setPowerOption: (key: keyof PowerOptions, value: boolean) => invoke<PowerView>("set_power_option", { key, value }),
 };

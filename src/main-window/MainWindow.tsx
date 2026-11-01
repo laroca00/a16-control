@@ -4,6 +4,7 @@ import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../componen
 import { useFanControl } from "../hooks/useFanControl";
 import { ComingSoon } from "../pages/ComingSoon";
 import { FanPage } from "../pages/FanPage";
+import { PowerPage } from "../pages/PowerPage";
 import { Overview } from "../pages/Overview";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ShaderGradient } from "../ui/ShaderGradient";
@@ -30,7 +31,7 @@ export function MainWindow() {
         <div key={page} className="main__page">
           {page === "overview" && <Overview control={control} />}
           {page === "fan" && <FanPage control={control} />}
-          {page === "power" && <ComingSoon title="navPower" body="soonPower" />}
+          {page === "power" && <PowerPage />}
           {page === "keyboard" && <ComingSoon title="navKeyboard" body="soonKeyboard" />}
           {page === "display" && <ComingSoon title="navDisplay" body="soonDisplay" />}
           {page === "settings" && <SettingsPage status={control.status} />}

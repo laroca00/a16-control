@@ -1,0 +1,50 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { I18nProvider } from "../i18n";
+import { api, type PowerView } from "../api";
+import { PowerPage } from "./PowerPage";
+
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
+
+const view: PowerView = {
+  mode: "performance",
+  profile: "performance",
+  reason: "userPerformance",
+  limits: { fppt: 80000, sppt: 65000, spl: 40000 },
+  options: { autoGame: false, acdcSwitch: true },
+  lastError: null,
+};
+
+vi.mock("../api", async (orig) => {
+  const real = await orig<typeof import("../api")>();
+  return {
+    ...real,
+    api: {
+      getPower: vi.fn(() => Promise.resolve(view)),
+      setPowerMode: vi.fn(() => Promise.resolve(view)),
+      setPowerOption: vi.fn(() => Promise.resolve({ ...view, options: { autoGame: true, acdcSwitch: true } })),
+      getConfig: vi.fn(() => Promise.resolve({ lang: null })),
+      setLang: vi.fn(() => Promise.resolve()),
+    },
+  };
+});
+
+function renderPage() {
+  render(
+    <I18nProvider initial="en">
+      <PowerPage />
+    </I18nProvider>,
+  );
+}
+
+test("power page shows the applied limits in watts", async () => {
+  renderPage();
+  expect(await screen.findByText("40 W")).toBeInTheDocument();
+  expect(screen.getByText("80 W")).toBeInTheDocument();
+});
+
+test("power page toggles options", async () => {
+  renderPage();
+  await userEvent.click(await screen.findByRole("switch", { name: /game is detected/ }));
+  expect(api.setPowerOption).toHaveBeenCalledWith("autoGame", true);
+});

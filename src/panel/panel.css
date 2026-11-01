@@ -27,6 +27,14 @@
   padding: 20px 18px 14px;
 }
 
+.panel .fan-dial {
+  width: 184px;
+}
+
+.panel .fan-dial__rpm {
+  font-size: 0.6875rem;
+}
+
 .panel--crowded .fan-dial {
   width: 160px;
 }
