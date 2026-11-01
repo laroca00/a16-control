@@ -47,11 +47,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
     let current = app.state::<AppState>().power.lock().unwrap().controller.mode();
     let open = MenuItem::with_id(app, "open", l.open, true, None::<&str>)?;
     let fan = CheckMenuItem::with_id(app, "fan", l.fan, true, false, None::<&str>)?;
-    let mut items = Vec::new();
-    for (i, (mode, id)) in MODE_IDS.iter().enumerate() {
-        items.push((*mode, CheckMenuItem::with_id(app, *id, l.modes[i], true, *mode == current, None::<&str>)?));
-    }
-    let modes: [(UiMode, CheckMenuItem<Wry>); 3] = items.try_into().map_err(|_| tauri::Error::AssetNotFound("tray".into()))?;
+    let item = |i: usize| -> tauri::Result<(UiMode, CheckMenuItem<Wry>)> {
+        let (mode, id) = MODE_IDS[i];
+        Ok((mode, CheckMenuItem::with_id(app, id, l.modes[i], true, mode == current, None::<&str>)?))
+    };
+    let modes = [item(0)?, item(1)?, item(2)?];
     let power = Submenu::with_items(app, l.power, true, &[&modes[0].1, &modes[1].1, &modes[2].1])?;
     let quit = MenuItem::with_id(app, "quit", l.quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &fan, &power, &quit])?;
