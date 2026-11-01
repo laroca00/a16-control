@@ -98,18 +98,26 @@ pub fn spawn(app: AppHandle) {
 }
 
 pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
-    let up = Shortcut::new(Some(Modifiers::CONTROL), Code::ArrowUp);
-    let down = Shortcut::new(Some(Modifiers::CONTROL), Code::ArrowDown);
+    use tauri_plugin_global_shortcut::{Code, ShortcutState};
     tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts([up, down])
-        .expect("valid shortcuts")
-        .with_handler(move |app, shortcut, event| {
+        .with_handler(|app, shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
-            let raise = *shortcut == up;
+            let raise = shortcut.key == Code::ArrowUp;
             update(app, |s, _| s.brightness = keyboard::step_brightness(s.brightness, raise));
         })
         .build()
+}
+
+/// Ctrl+Up / Ctrl+Down for keyboard brightness. Registered after startup so
+/// a chord already taken by another program only disables the shortcut
+/// instead of stopping the app from starting.
+pub fn register_shortcuts(app: &AppHandle) {
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+    for code in [Code::ArrowUp, Code::ArrowDown] {
+        if let Err(e) = app.global_shortcut().register(Shortcut::new(Some(Modifiers::CONTROL), code)) {
+            eprintln!("keyboard shortcut unavailable: {e}");
+        }
+    }
 }

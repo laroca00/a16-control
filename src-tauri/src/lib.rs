@@ -68,6 +68,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
             }
             spawn_background(app.handle().clone());
             keyboard_ctl::spawn(app.handle().clone());
+            keyboard_ctl::register_shortcuts(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
