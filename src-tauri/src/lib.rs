@@ -148,10 +148,10 @@ const GPU_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Once a minute: route apps by power source and reset a stuck dGPU.
 fn gpu_tick(app: &AppHandle) {
-    let (igpu, auto_reset) = {
+    let (igpu, auto_reset, routed) = {
         let st = app.state::<AppState>();
         let cfg = st.config.lock().unwrap();
-        (cfg.igpu_on_battery, cfg.gpu_auto_reset)
+        (cfg.igpu_on_battery, cfg.gpu_auto_reset, cfg.gpu_routed.clone())
     };
     let ctl = app.state::<gpu::GpuCtl>();
     let on_battery = os::power_status().0 == Some(false);
@@ -159,7 +159,13 @@ fn gpu_tick(app: &AppHandle) {
         let mut last = ctl.last_battery.lock().unwrap();
         if *last != Some(on_battery) {
             *last = Some(on_battery);
-            gpu::set_apps_gpu(on_battery && igpu);
+            let now_routed = gpu::set_apps_gpu(on_battery && igpu, &routed);
+            if now_routed != routed {
+                let st = app.state::<AppState>();
+                let mut cfg = st.config.lock().unwrap();
+                cfg.gpu_routed = now_routed;
+                let _ = config::save(&cfg);
+            }
         }
     }
     let Some(id) = ctl.id.clone() else { return };

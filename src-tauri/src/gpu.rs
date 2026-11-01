@@ -10,8 +10,8 @@ use windows::Win32::Devices::DeviceAndDriverInstallation::{
 };
 use windows::Win32::Devices::Properties::{DEVPKEY_Device_Class, DEVPKEY_Device_PowerData, DEVPROPTYPE};
 use windows::Win32::System::Registry::{
-    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE,
-    REG_OPTION_NON_VOLATILE, REG_SZ,
+    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegGetValueW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE,
+    REG_OPTION_NON_VOLATILE, REG_SZ, RRF_RT_REG_SZ,
 };
 
 use crate::elevation::tool;
@@ -91,26 +91,86 @@ fn expand(path: &str) -> String {
     out
 }
 
-/// On battery, ask Windows to run the listed apps on the iGPU; on AC, hand
-/// the choice back. Takes effect the next time each app starts.
-pub fn set_apps_gpu(on_battery: bool) {
+#[derive(Debug, PartialEq)]
+pub struct RoutePlan {
+    pub write: Vec<String>,
+    pub delete: Vec<String>,
+    /// Apps that carry our value afterwards, kept in config.
+    pub routed: Vec<String>,
+}
+
+/// `existing` pairs each installed app with its current preference value.
+/// A value the user set is never overwritten, and only values this app
+/// wrote, still unchanged, are removed.
+pub fn route_plan(route: bool, existing: &[(String, Option<String>)], routed: &[String]) -> RoutePlan {
+    let ours = preference_value(1);
+    if route {
+        let write: Vec<String> = existing.iter().filter(|(_, v)| v.is_none()).map(|(a, _)| a.clone()).collect();
+        let mut all: Vec<String> = routed.to_vec();
+        all.extend(write.iter().cloned());
+        all.sort();
+        all.dedup();
+        RoutePlan { write, delete: Vec::new(), routed: all }
+    } else {
+        let delete = existing
+            .iter()
+            .filter(|(a, v)| routed.contains(a) && v.as_deref() == Some(ours.as_str()))
+            .map(|(a, _)| a.clone())
+            .collect();
+        RoutePlan { write: Vec::new(), delete, routed: Vec::new() }
+    }
+}
+
+fn read_preference(app: &str) -> Option<String> {
+    let mut buf = [0u16; 128];
+    let mut size = (buf.len() * 2) as u32;
+    unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            &HSTRING::from(GPU_PREF_KEY),
+            &HSTRING::from(app),
+            RRF_RT_REG_SZ,
+            None,
+            Some(buf.as_mut_ptr() as *mut _),
+            Some(&mut size),
+        )
+    }
+    .ok()
+    .ok()?;
+    let len = (size as usize / 2).saturating_sub(1);
+    Some(String::from_utf16_lossy(&buf[..len.min(buf.len())]))
+}
+
+/// On battery, ask Windows to run the listed apps on the iGPU; otherwise
+/// remove what this app set. Takes effect the next time each app starts.
+/// Returns the apps now carrying our value.
+pub fn set_apps_gpu(route: bool, routed: &[String]) -> Vec<String> {
+    let existing: Vec<(String, Option<String>)> = APPS
+        .iter()
+        .map(|a| expand(a))
+        .filter(|p| std::path::Path::new(p).exists())
+        .map(|p| {
+            let v = read_preference(&p);
+            (p, v)
+        })
+        .collect();
+    let plan = route_plan(route, &existing, routed);
     unsafe {
         let mut key = HKEY::default();
         if RegCreateKeyExW(HKEY_CURRENT_USER, &HSTRING::from(GPU_PREF_KEY), None, PCWSTR::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, None, &mut key, None).is_err() {
-            return;
+            return routed.to_vec();
         }
         let data: Vec<u16> = preference_value(1).encode_utf16().chain([0]).collect();
         let bytes = std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2);
-        for app in APPS.iter().map(|a| expand(a)).filter(|p| std::path::Path::new(p).exists()) {
-            let name = HSTRING::from(app.as_str());
-            if on_battery {
-                let _ = RegSetValueExW(key, &name, None, REG_SZ, Some(bytes));
-            } else {
-                let _ = RegDeleteValueW(key, &name);
-            }
+        for app in &plan.write {
+            let _ = RegSetValueExW(key, &HSTRING::from(app.as_str()), None, REG_SZ, Some(bytes));
+        }
+        for app in &plan.delete {
+            let _ = RegDeleteValueW(key, &HSTRING::from(app.as_str()));
         }
         let _ = RegCloseKey(key);
     }
+    plan.routed
 }
 
 fn devnode(id: &str) -> Option<u32> {
@@ -247,6 +307,29 @@ mod tests {
         let i = inputs(Instant::now());
         assert!((0..5).all(|_| !g.tick(&i, || Some(true))));
         assert!((0..5).all(|_| !g.tick(&i, || None)));
+    }
+
+    #[test]
+    fn routing_never_overrides_user_choice() {
+        let existing = vec![("chrome".to_string(), Some("GpuPreference=2;".to_string())), ("code".to_string(), None)];
+        let plan = route_plan(true, &existing, &[]);
+        assert_eq!(plan.write, vec!["code".to_string()]);
+        assert!(plan.delete.is_empty());
+        assert_eq!(plan.routed, vec!["code".to_string()]);
+    }
+
+    #[test]
+    fn routing_only_removes_own_values() {
+        let existing = vec![
+            ("chrome".to_string(), Some("GpuPreference=2;".to_string())),
+            ("code".to_string(), Some("GpuPreference=1;".to_string())),
+            ("slack".to_string(), Some("GpuPreference=1;".to_string())),
+        ];
+        // chrome was changed by the user since; slack was never ours.
+        let plan = route_plan(false, &existing, &["chrome".to_string(), "code".to_string()]);
+        assert_eq!(plan.delete, vec!["code".to_string()]);
+        assert!(plan.write.is_empty());
+        assert!(plan.routed.is_empty());
     }
 
     #[test]

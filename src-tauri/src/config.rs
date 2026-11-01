@@ -18,6 +18,8 @@ pub struct Config {
     pub kb_rainbow: bool,
     pub igpu_on_battery: bool,
     pub gpu_auto_reset: bool,
+    /// Apps whose iGPU preference this app wrote, so only those are undone.
+    pub gpu_routed: Vec<String>,
     pub afterburner: AbOptions,
     pub eco_enabled: bool,
     pub eco_targets: Vec<String>,
@@ -35,6 +37,7 @@ impl Default for Config {
             kb_rainbow: false,
             igpu_on_battery: true,
             gpu_auto_reset: false,
+            gpu_routed: Vec::new(),
             afterburner: AbOptions { enabled: false, oc_profile: 1, stock_profile: 5 },
             eco_enabled: true,
             eco_targets: Vec::new(),
