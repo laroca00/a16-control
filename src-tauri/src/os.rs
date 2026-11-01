@@ -328,6 +328,13 @@ pub fn process_cpu_snapshot() -> std::collections::HashMap<u32, (String, u64)> {
     out
 }
 
+/// Session of a process; 0 means a service.
+pub fn session_of(pid: u32) -> Option<u32> {
+    let mut session = 0u32;
+    unsafe { windows::Win32::System::RemoteDesktop::ProcessIdToSessionId(pid, &mut session) }.ok()?;
+    Some(session)
+}
+
 pub fn foreground_pid() -> Option<u32> {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
@@ -338,10 +345,11 @@ pub fn foreground_pid() -> Option<u32> {
 pub fn set_eco(pid: u32, on: bool) -> bool {
     unsafe {
         let Ok(h) = OpenProcess(PROCESS_SET_INFORMATION, false, pid) else { return false };
+        let (control, state_bits) = crate::battery::throttling_masks(on);
         let state = PROCESS_POWER_THROTTLING_STATE {
             Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
-            ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
-            StateMask: if on { PROCESS_POWER_THROTTLING_EXECUTION_SPEED } else { 0 },
+            ControlMask: control * PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+            StateMask: state_bits * PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
         };
         let ok = SetProcessInformation(
             h,

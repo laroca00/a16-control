@@ -12,7 +12,14 @@ pub const SAMPLE_EVERY: Duration = Duration::from_secs(5);
 pub const IDLE_AFTER: Duration = Duration::from_secs(60);
 const TARGET_CPU_SECONDS: u64 = 15;
 const HUNDRED_NS_PER_SEC: u64 = 10_000_000;
-const NEVER: [&str; 7] = ["gienemy", "explorer", "dwm", "csrss", "winlogon", "system", "idle"];
+// Shell, session and service hosts, security, audio and this app's own UI.
+// Throttling any of them by name hits every instance (svchost hosts audio
+// and networking), so they are never candidates.
+const NEVER: [&str; 24] = [
+    "gienemy", "msedgewebview2", "explorer", "dwm", "csrss", "winlogon", "wininit", "smss", "services", "lsass",
+    "svchost", "system", "idle", "registry", "audiodg", "fontdrvhost", "sihost", "ctfmon", "searchhost",
+    "msmpeng", "runtimebroker", "conhost", "taskhostw", "startmenuexperiencehost",
+];
 
 #[derive(Clone, Copy, Debug)]
 pub struct Sample {
@@ -69,12 +76,12 @@ pub struct EcoPlan {
     pub release: Vec<u32>,
 }
 
-/// `targets` are running processes whose names are on the list. The
-/// foreground app always runs at full speed.
-pub fn eco_plan(targets: &[(u32, String)], foreground: Option<u32>, throttled: &HashSet<u32>) -> EcoPlan {
+/// `targets` are running processes whose names are on the list. Every
+/// process of the foreground app (browsers run many) stays at full speed.
+pub fn eco_plan(targets: &[(u32, String)], foreground: Option<&str>, throttled: &HashSet<u32>) -> EcoPlan {
     let mut plan = EcoPlan { throttle: Vec::new(), release: Vec::new() };
-    for (pid, _) in targets {
-        let is_fg = foreground == Some(*pid);
+    for (pid, name) in targets {
+        let is_fg = foreground.is_some_and(|fg| fg.eq_ignore_ascii_case(name));
         match (is_fg, throttled.contains(pid)) {
             (true, true) => plan.release.push(*pid),
             (false, false) => plan.throttle.push(*pid),
@@ -82,6 +89,19 @@ pub fn eco_plan(targets: &[(u32, String)], foreground: Option<u32>, throttled: &
         }
     }
     plan
+}
+
+/// (ControlMask, StateMask) for PROCESS_POWER_THROTTLING_STATE. Releasing
+/// clears the control bit so Windows manages the process again; setting it
+/// with a zero state would pin the process to full speed instead.
+pub fn throttling_masks(on: bool) -> (u32, u32) {
+    if on { (1, 1) } else { (0, 0) }
+}
+
+/// Throttled processes that are still running but no longer on the target
+/// list (a newer watch picked other apps); they must be released explicitly.
+pub fn dropped_targets(throttled: &HashSet<u32>, still_targets: &HashSet<u32>, alive: &HashSet<u32>) -> Vec<u32> {
+    throttled.iter().filter(|p| !still_targets.contains(p) && alive.contains(p)).copied().collect()
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -170,10 +190,12 @@ mod tests {
 
     #[test]
     fn foreground_is_released() {
-        let targets = vec![(10, "chrome".to_string()), (11, "chrome".to_string())];
-        let throttled: HashSet<u32> = [10, 11].into();
-        let plan = eco_plan(&targets, Some(10), &throttled);
-        assert_eq!(plan.release, vec![10]);
+        // Browsers run many processes; the whole app counts as foreground.
+        let targets = vec![(10, "chrome".to_string()), (11, "chrome".to_string()), (12, "slack".to_string())];
+        let throttled: HashSet<u32> = [10, 11, 12].into();
+        let mut plan = eco_plan(&targets, Some("Chrome"), &throttled);
+        plan.release.sort();
+        assert_eq!(plan.release, vec![10, 11]);
         assert!(plan.throttle.is_empty());
     }
 
@@ -185,6 +207,30 @@ mod tests {
         assert_eq!(plan.throttle, vec![12]);
         // 99 exited; nothing to release for a gone process.
         assert!(plan.release.is_empty());
+    }
+
+    #[test]
+    fn system_and_service_processes_are_never_targets() {
+        let before = snap(&[]);
+        let after = snap(&[(1, "svchost", 99 * SEC), (2, "msedgewebview2", 99 * SEC), (3, "MsMpEng", 99 * SEC), (4, "audiodg", 99 * SEC)]);
+        assert!(summarize(&[], &before, &after, Duration::from_secs(600)).targets.is_empty());
+    }
+
+    #[test]
+    fn release_hands_control_back_to_windows() {
+        assert_eq!(throttling_masks(true), (1, 1));
+        // ControlMask 0: Windows decides again; (1, 0) would pin the process to full speed.
+        assert_eq!(throttling_masks(false), (0, 0));
+    }
+
+    #[test]
+    fn dropped_targets_are_released() {
+        let throttled: HashSet<u32> = [10, 11, 12].into();
+        let still_targets: HashSet<u32> = [10].into();
+        let alive: HashSet<u32> = [10, 11].into();
+        let mut dropped = dropped_targets(&throttled, &still_targets, &alive);
+        dropped.sort();
+        assert_eq!(dropped, vec![11]);
     }
 
     #[test]

@@ -121,11 +121,16 @@ pub fn tick(app: &AppHandle) {
         emit(app);
     }
 
+    release_foreground(app);
     let due = ctl.last_eco.lock().unwrap().is_none_or(|t| now.duration_since(t) >= ECO_EVERY);
     if due {
         *ctl.last_eco.lock().unwrap() = Some(now);
         eco_tick(app, on_battery);
     }
+}
+
+fn foreground_name(snapshot: &HashMap<u32, (String, u64)>) -> Option<String> {
+    os::foreground_pid().and_then(|pid| snapshot.get(&pid).map(|(name, _)| name.clone()))
 }
 
 fn eco_tick(app: &AppHandle, on_battery: bool) {
@@ -138,22 +143,52 @@ fn eco_tick(app: &AppHandle, on_battery: bool) {
         release_all(app);
         return;
     }
-    let running: Vec<(u32, String)> = os::process_cpu_snapshot()
-        .into_iter()
+    let snapshot = os::process_cpu_snapshot();
+    // Services (session 0) are never touched, whatever their name.
+    let running: Vec<(u32, String)> = snapshot
+        .iter()
         .filter(|(_, (name, _))| targets.iter().any(|t| t.eq_ignore_ascii_case(name)))
-        .map(|(pid, (name, _))| (pid, name))
+        .filter(|(pid, _)| os::session_of(**pid).is_some_and(|s| s != 0))
+        .map(|(pid, (name, _))| (*pid, name.clone()))
         .collect();
     let ctl = app.state::<BatteryCtl>();
     let mut throttled = ctl.throttled.lock().unwrap();
-    let alive: HashSet<u32> = running.iter().map(|(p, _)| *p).collect();
+    let alive: HashSet<u32> = snapshot.keys().copied().collect();
+    let still: HashSet<u32> = running.iter().map(|(p, _)| *p).collect();
+    for pid in battery::dropped_targets(&throttled, &still, &alive) {
+        os::set_eco(pid, false);
+        throttled.remove(&pid);
+    }
     throttled.retain(|p| alive.contains(p));
-    let plan = battery::eco_plan(&running, os::foreground_pid(), &throttled);
+    let plan = battery::eco_plan(&running, foreground_name(&snapshot).as_deref(), &throttled);
     for pid in plan.throttle {
         if os::set_eco(pid, true) {
             throttled.insert(pid);
         }
     }
     for pid in plan.release {
+        os::set_eco(pid, false);
+        throttled.remove(&pid);
+    }
+}
+
+/// Every tick: an app brought to the front gets full speed right away, not
+/// at the next minute's EcoQoS pass.
+fn release_foreground(app: &AppHandle) {
+    let ctl = app.state::<BatteryCtl>();
+    let mut throttled = ctl.throttled.lock().unwrap();
+    let Some(fg) = os::foreground_pid() else { return };
+    if throttled.is_empty() || !throttled.contains(&fg) {
+        return;
+    }
+    let snapshot = os::process_cpu_snapshot();
+    let Some(name) = snapshot.get(&fg).map(|(n, _)| n.clone()) else { return };
+    let family: Vec<u32> = throttled
+        .iter()
+        .filter(|p| snapshot.get(p).is_some_and(|(n, _)| n.eq_ignore_ascii_case(&name)))
+        .copied()
+        .collect();
+    for pid in family {
         os::set_eco(pid, false);
         throttled.remove(&pid);
     }
