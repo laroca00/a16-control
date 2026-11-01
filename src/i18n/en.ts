@@ -58,7 +58,7 @@ export const en = {
   modeAuto: "Auto",
   modePerformance: "Performance",
   modeLabel: "Power mode",
-  reasonUserBattery: "Lower power limits, 60 Hz and dimmer screen",
+  reasonUserBattery: "Efficiency mode, 60 Hz and a dimmer screen",
   reasonUserPerformance: "Full power and Max Fan",
   reasonAutoAc: "Plugged in, balanced",
   reasonAutoDc: "On battery, saving power",

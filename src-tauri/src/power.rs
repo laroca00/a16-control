@@ -57,6 +57,12 @@ const MAX_FPPT: u32 = 80_000;
 const MAX_SPPT: u32 = 75_000;
 const MAX_SPL: u32 = 40_000;
 
+// The unit SetApuParameter1-3 expect on this BIOS is unconfirmed: on the
+// A16, package power under load did not track either milliwatt or watt
+// values in testing (2026-11-01). Until a measurement settles it, power modes
+// leave the APU limits to the firmware.
+pub const APU_WRITES: bool = false;
+
 pub fn clamp(l: Limits) -> Limits {
     Limits {
         fppt: l.fppt.clamp(MIN_MW, MAX_FPPT),
@@ -112,13 +118,12 @@ pub fn profile(id: ProfileId) -> Profile {
 /// earlier one fails, so a rejected power limit still leaves the fans right.
 pub fn apply_firmware(wmi: &dyn GbWmi, p: &Profile) -> Result<(), HwError> {
     let l = clamp(p.limits);
+    let mut writes = vec![("SetNvPowerConfig", p.nv_boost)];
+    if APU_WRITES {
+        writes.splice(0..0, [("SetApuParameter1", l.fppt), ("SetApuParameter2", l.sppt), ("SetApuParameter3", l.spl)]);
+    }
     let mut first_err = None;
-    for (method, value) in [
-        ("SetApuParameter1", l.fppt),
-        ("SetApuParameter2", l.sppt),
-        ("SetApuParameter3", l.spl),
-        ("SetNvPowerConfig", p.nv_boost),
-    ] {
+    for (method, value) in writes {
         if let Err(e) = wmi.set(method, value) {
             first_err.get_or_insert(e);
         }
@@ -300,7 +305,7 @@ pub fn view(mode: UiMode, last: Option<&Decision>, options: Options, error: Opti
         mode,
         profile: last.map(|d| d.profile),
         reason: last.map(|d| d.reason),
-        limits: last.map(|d| clamp(profile(d.profile).limits)),
+        limits: last.filter(|_| APU_WRITES).map(|d| clamp(profile(d.profile).limits)),
         options,
         last_error: error.map(str::to_string),
     }
@@ -455,9 +460,9 @@ mod tests {
         let opts = Options { auto_game: true, acdc_switch: false };
         let v = view(UiMode::Performance, Some(&d), opts, None);
         assert_eq!(v.profile, Some(ProfileId::Performance));
-        assert_eq!(v.limits, Some(Limits { fppt: 80_000, sppt: 65_000, spl: 40_000 }));
+        // Limits are only reported once they are actually written.
+        assert_eq!(v.limits, None);
         assert_eq!(v.options, opts);
-        assert!(view(UiMode::Auto, None, opts, None).limits.is_none());
     }
 
     #[test]
@@ -486,29 +491,27 @@ mod tests {
     }
 
     #[test]
-    fn performance_writes_limits_then_boost_then_max_fan() {
+    fn performance_writes_boost_then_max_fan() {
         let w = FakeWmi::default();
         apply_firmware(&w, &profile(ProfileId::Performance)).unwrap();
         let calls = w.calls();
-        assert_eq!(
-            &calls[..4],
-            &[
-                ("SetApuParameter1".to_string(), 80_000),
-                ("SetApuParameter2".to_string(), 65_000),
-                ("SetApuParameter3".to_string(), 40_000),
-                ("SetNvPowerConfig".to_string(), 1),
-            ]
-        );
+        assert_eq!(calls[0], ("SetNvPowerConfig".to_string(), 1));
         assert_eq!(calls.last().unwrap(), &("SetFixedFanStatus".to_string(), 1));
     }
 
     #[test]
-    fn apply_continues_after_apu_failure() {
-        let w = FakeWmi::failing_on("SetApuParameter2");
+    fn apu_limits_are_not_written_until_verified() {
+        for id in ALL {
+            let w = FakeWmi::default();
+            apply_firmware(&w, &profile(id)).unwrap();
+            assert!(w.calls().iter().all(|(m, _)| !m.starts_with("SetApuParameter")), "{id:?}");
+        }
+    }
+
+    #[test]
+    fn apply_continues_after_boost_failure() {
+        let w = FakeWmi::failing_on("SetNvPowerConfig");
         assert!(apply_firmware(&w, &profile(ProfileId::Battery)).is_err());
-        let names: Vec<String> = w.calls().into_iter().map(|c| c.0).collect();
-        assert!(names.contains(&"SetApuParameter3".to_string()));
-        assert!(names.contains(&"SetNvPowerConfig".to_string()));
-        assert_eq!(names.last().unwrap(), "SetAutoFanStatus");
+        assert_eq!(w.calls().last().unwrap().0, "SetAutoFanStatus");
     }
 }

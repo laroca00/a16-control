@@ -60,7 +60,7 @@ export const tr: Record<keyof typeof en, string> = {
   modeAuto: "Auto",
   modePerformance: "Performans",
   modeLabel: "Güç modu",
-  reasonUserBattery: "Düşük güç limiti, 60 Hz ve kısık ekran",
+  reasonUserBattery: "Verimli mod, 60 Hz ve kısık ekran",
   reasonUserPerformance: "Tam güç ve Max Fan",
   reasonAutoAc: "Prizde, dengeli",
   reasonAutoDc: "Pilde, tasarruflu",
