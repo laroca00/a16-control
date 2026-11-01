@@ -5,6 +5,7 @@ import { useFanControl } from "../hooks/useFanControl";
 import { ComingSoon } from "../pages/ComingSoon";
 import { FanPage } from "../pages/FanPage";
 import { PowerPage } from "../pages/PowerPage";
+import { KeyboardPage } from "../pages/KeyboardPage";
 import { Overview } from "../pages/Overview";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ShaderGradient } from "../ui/ShaderGradient";
@@ -32,7 +33,7 @@ export function MainWindow() {
           {page === "overview" && <Overview control={control} />}
           {page === "fan" && <FanPage control={control} />}
           {page === "power" && <PowerPage />}
-          {page === "keyboard" && <ComingSoon title="navKeyboard" body="soonKeyboard" />}
+          {page === "keyboard" && <KeyboardPage />}
           {page === "display" && <ComingSoon title="navDisplay" body="soonDisplay" />}
           {page === "settings" && <SettingsPage status={control.status} />}
         </div>

@@ -29,6 +29,14 @@ export type ProfileId = "battery" | "balancedAc" | "balancedDc" | "performance";
 export type Reason = "userBattery" | "userPerformance" | "autoAc" | "autoDc" | "autoLowBattery" | "autoGame";
 export type PowerOptions = { autoGame: boolean; acdcSwitch: boolean };
 
+export type Rgb = [number, number, number];
+export type KeyboardView = {
+  rgb: Rgb;
+  brightness: number;
+  rainbow: boolean;
+  presets: { name: string; rgb: Rgb }[];
+};
+
 export type PowerView = {
   mode: UiMode;
   profile: ProfileId | null;
@@ -55,4 +63,8 @@ export const api = {
   getPower: () => invoke<PowerView>("get_power"),
   setPowerMode: (mode: UiMode) => invoke<PowerView>("set_power_mode", { mode }),
   setPowerOption: (key: keyof PowerOptions, value: boolean) => invoke<PowerView>("set_power_option", { key, value }),
+  getKeyboard: () => invoke<KeyboardView>("get_keyboard"),
+  setKeyboardColor: (rgb: Rgb) => invoke<KeyboardView>("set_keyboard_color", { rgb }),
+  setKeyboardBrightness: (value: number) => invoke<KeyboardView>("set_keyboard_brightness", { value }),
+  setKeyboardRainbow: (on: boolean) => invoke<KeyboardView>("set_keyboard_rainbow", { on }),
 };

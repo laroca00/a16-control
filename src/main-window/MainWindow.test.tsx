@@ -29,6 +29,7 @@ vi.mock("../api", async (orig) => {
         }),
       ),
       setPowerMode: vi.fn(),
+      getKeyboard: vi.fn(() => new Promise(() => {})),
       setPowerOption: vi.fn(),
       runInstall: vi.fn(),
       runUninstall: vi.fn(() => Promise.resolve()),
@@ -53,7 +54,7 @@ test("sidebar navigates between pages", async () => {
   expect(screen.getByRole("heading", { level: 1, name: "Fan" })).toBeInTheDocument();
 });
 
-test.each(["Klavye", "Ekran"])("%s shows coming soon", async (name) => {
+test.each(["Ekran"])("%s shows coming soon", async (name) => {
   renderMain();
   await userEvent.click(screen.getByRole("button", { name }));
   expect(screen.getByText(/sonraki sürümde/)).toBeInTheDocument();
