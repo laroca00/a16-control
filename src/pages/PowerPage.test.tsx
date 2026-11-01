@@ -23,6 +23,8 @@ vi.mock("../api", async (orig) => {
       getPower: vi.fn(() => Promise.resolve(view)),
       setPowerMode: vi.fn(() => Promise.resolve(view)),
       setPowerOption: vi.fn(() => Promise.resolve({ ...view, options: { autoGame: true, acdcSwitch: true } })),
+      getGpu: vi.fn(() => Promise.resolve({ state: "d3", igpuOnBattery: true, autoReset: false })),
+      setGpuOption: vi.fn(() => Promise.resolve({ state: "d3", igpuOnBattery: true, autoReset: true })),
       getConfig: vi.fn(() => Promise.resolve({ lang: null })),
       setLang: vi.fn(() => Promise.resolve()),
     },
@@ -47,4 +49,11 @@ test("power page toggles options", async () => {
   renderPage();
   await userEvent.click(await screen.findByRole("switch", { name: /game is detected/ }));
   expect(api.setPowerOption).toHaveBeenCalledWith("autoGame", true);
+});
+
+test("power page shows the dGPU state and toggles reset", async () => {
+  renderPage();
+  expect(await screen.findByText("Graphics card: asleep")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("switch", { name: /stays awake/ }));
+  expect(api.setGpuOption).toHaveBeenCalledWith("autoReset", true);
 });

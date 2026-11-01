@@ -4,6 +4,7 @@ pub mod config;
 pub mod display;
 pub mod elevation;
 pub mod fan;
+pub mod gpu;
 pub mod hw;
 pub mod keyboard;
 pub mod keyboard_ctl;
@@ -45,6 +46,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
         .manage(state)
         .manage(keyboard)
         .manage(display::DisplayState::default())
+        .manage(gpu::GpuCtl::new())
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -113,9 +115,44 @@ fn persist_mode(st: &AppState, mode: UiMode) {
     }
 }
 
+const GPU_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Once a minute: route apps by power source and reset a stuck dGPU.
+fn gpu_tick(app: &AppHandle) {
+    let (igpu, auto_reset) = {
+        let st = app.state::<AppState>();
+        let cfg = st.config.lock().unwrap();
+        (cfg.igpu_on_battery, cfg.gpu_auto_reset)
+    };
+    let ctl = app.state::<gpu::GpuCtl>();
+    let on_battery = os::power_status().0 == Some(false);
+    {
+        let mut last = ctl.last_battery.lock().unwrap();
+        if *last != Some(on_battery) {
+            *last = Some(on_battery);
+            gpu::set_apps_gpu(on_battery && igpu);
+        }
+    }
+    let Some(id) = ctl.id.clone() else { return };
+    let d0 = gpu::power_state(&id) == Some(gpu::DState::D0);
+    let inputs = gpu::GpuInputs {
+        now: std::time::Instant::now(),
+        enabled: auto_reset,
+        on_battery,
+        d0,
+        fullscreen: os::foreground_fullscreen(),
+        idle: os::user_idle(),
+    };
+    // The card is already awake when this runs, so reading its load is free.
+    if ctl.guard.lock().unwrap().tick(&inputs, || os::gpu_3d_util().map(|u| u >= 5.0)) {
+        gpu::restart(&id);
+    }
+}
+
 /// One loop for the show-window requests and telemetry. Telemetry is only
 /// read while someone can see it.
 fn spawn_background(app: AppHandle) {
+    let mut last_gpu = std::time::Instant::now() - GPU_CHECK_EVERY;
     thread::spawn(move || loop {
         let request = config::show_request_path();
         if request.exists() {
@@ -124,6 +161,10 @@ fn spawn_background(app: AppHandle) {
         }
         power_tick(&app);
         display::watch(&app);
+        if last_gpu.elapsed() >= GPU_CHECK_EVERY {
+            last_gpu = std::time::Instant::now();
+            gpu_tick(&app);
+        }
         if any_window_visible(&app) {
             match app.state::<AppState>().telemetry() {
                 Ok(t) => {

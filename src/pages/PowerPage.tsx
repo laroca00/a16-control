@@ -1,4 +1,5 @@
-import type { PowerOptions } from "../api";
+import { useEffect, useState } from "react";
+import { api, type GpuView, type PowerOptions } from "../api";
 import { ModeSwitch } from "../components/ModeSwitch";
 import { usePower } from "../hooks/usePower";
 import { useT, type Key } from "../i18n";
@@ -15,9 +16,33 @@ const OPTIONS: { key: keyof PowerOptions; label: Key }[] = [
   { key: "autoGame", label: "optGame" },
 ];
 
+function Toggle({ label, on, disabled, onChange }: { label: string; on: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="toggle">
+      <span>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        className={`toggle__switch${on ? " toggle__switch--on" : ""}`}
+        disabled={disabled}
+        onClick={() => onChange(!on)}
+      />
+    </label>
+  );
+}
+
 export function PowerPage() {
   const t = useT();
   const { power, setMode, setOption } = usePower();
+  const [gpu, setGpu] = useState<GpuView | null>(null);
+
+  useEffect(() => {
+    api.getGpu().then(setGpu).catch(() => {});
+  }, []);
+
+  const gpuLine = gpu?.state === "d0" ? t("gpuAwake") : gpu?.state === "d3" ? t("gpuAsleep") : t("gpuUnknown");
 
   return (
     <div className="page page--power">
@@ -44,23 +69,32 @@ export function PowerPage() {
         )}
 
         <LiquidGlass className="settings__card" radius={24}>
-          {OPTIONS.map((o) => {
-            const on = power?.options[o.key] ?? false;
-            return (
-              <label key={o.key} className="toggle">
-                <span>{t(o.label)}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={on}
-                  aria-label={t(o.label)}
-                  className={`toggle__switch${on ? " toggle__switch--on" : ""}`}
-                  disabled={!power}
-                  onClick={() => setOption(o.key, !on)}
-                />
-              </label>
-            );
-          })}
+          {OPTIONS.map((o) => (
+            <Toggle
+              key={o.key}
+              label={t(o.label)}
+              on={power?.options[o.key] ?? false}
+              disabled={!power}
+              onChange={(v) => setOption(o.key, v)}
+            />
+          ))}
+        </LiquidGlass>
+
+        <LiquidGlass className="settings__card" radius={24}>
+          <h2 className="card__title">{t("gpuTitle")}</h2>
+          <p className="card__body">{gpuLine}</p>
+          <Toggle
+            label={t("gpuIgpu")}
+            on={gpu?.igpuOnBattery ?? false}
+            disabled={!gpu}
+            onChange={(v) => api.setGpuOption("igpuOnBattery", v).then(setGpu)}
+          />
+          <Toggle
+            label={t("gpuReset")}
+            on={gpu?.autoReset ?? false}
+            disabled={!gpu}
+            onChange={(v) => api.setGpuOption("autoReset", v).then(setGpu)}
+          />
         </LiquidGlass>
       </div>
     </div>

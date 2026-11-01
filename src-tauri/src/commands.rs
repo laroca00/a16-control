@@ -5,6 +5,7 @@ use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
 use crate::display::{self, DisplayView};
 use crate::fan::FanMode;
+use crate::gpu::{GpuCtl, GpuView};
 use crate::keyboard::KeyboardView;
 use crate::keyboard_ctl::{self, KeyboardCtl};
 use crate::power::{self, PowerView, UiMode};
@@ -163,6 +164,33 @@ pub fn screen_on(app: AppHandle) {
     display::screen_on(&app);
 }
 
+fn gpu_view(app: &AppHandle) -> GpuView {
+    let cfg = app.state::<AppState>().config.lock().unwrap().clone();
+    GpuView { state: app.state::<GpuCtl>().state(), igpu_on_battery: cfg.igpu_on_battery, auto_reset: cfg.gpu_auto_reset }
+}
+
+#[tauri::command]
+pub fn get_gpu(app: AppHandle) -> GpuView {
+    gpu_view(&app)
+}
+
+#[tauri::command]
+pub fn set_gpu_option(app: AppHandle, key: String, value: bool) -> Result<GpuView, String> {
+    {
+        let st = app.state::<AppState>();
+        let mut cfg = st.config.lock().unwrap();
+        match key.as_str() {
+            "igpuOnBattery" => cfg.igpu_on_battery = value,
+            "autoReset" => cfg.gpu_auto_reset = value,
+            other => return Err(format!("unknown gpu option {other:?}")),
+        }
+        config::save(&cfg)?;
+    }
+    // Re-route on the next minute tick with the new setting.
+    *app.state::<GpuCtl>().last_battery.lock().unwrap() = None;
+    Ok(gpu_view(&app))
+}
+
 #[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
@@ -212,6 +240,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         set_refresh_rate,
         screen_off,
         screen_on,
+        get_gpu,
+        set_gpu_option,
         open_main,
         quit_app
     ]

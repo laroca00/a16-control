@@ -39,6 +39,8 @@ export type KeyboardView = {
 
 export type DisplayView = { brightness: number | null; refresh: number | null; rates: number[]; screenOff: boolean };
 
+export type GpuView = { state: "d0" | "d3" | "other" | null; igpuOnBattery: boolean; autoReset: boolean };
+
 export type PowerView = {
   mode: UiMode;
   profile: ProfileId | null;
@@ -69,6 +71,8 @@ export const api = {
   setKeyboardColor: (rgb: Rgb) => invoke<KeyboardView>("set_keyboard_color", { rgb }),
   setKeyboardBrightness: (value: number) => invoke<KeyboardView>("set_keyboard_brightness", { value }),
   setKeyboardRainbow: (on: boolean) => invoke<KeyboardView>("set_keyboard_rainbow", { on }),
+  getGpu: () => invoke<GpuView>("get_gpu"),
+  setGpuOption: (key: "igpuOnBattery" | "autoReset", value: boolean) => invoke<GpuView>("set_gpu_option", { key, value }),
   getDisplay: () => invoke<DisplayView>("get_display"),
   setBrightness: (value: number) => invoke<DisplayView>("set_brightness", { value }),
   setRefreshRate: (hz: number) => invoke<DisplayView>("set_refresh_rate", { hz }),

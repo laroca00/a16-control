@@ -15,6 +15,8 @@ pub struct Config {
     pub kb_color: [u8; 3],
     pub kb_brightness: u8,
     pub kb_rainbow: bool,
+    pub igpu_on_battery: bool,
+    pub gpu_auto_reset: bool,
 }
 
 impl Default for Config {
@@ -27,6 +29,8 @@ impl Default for Config {
             kb_color: [255, 255, 255],
             kb_brightness: 100,
             kb_rainbow: false,
+            igpu_on_battery: true,
+            gpu_auto_reset: false,
         }
     }
 }
