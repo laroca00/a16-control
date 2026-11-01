@@ -1,3 +1,4 @@
+pub mod afterburner;
 pub mod cli;
 pub mod commands;
 pub mod config;
@@ -98,6 +99,15 @@ pub fn power_tick(app: &AppHandle) {
     let Some(decision) = decision else { return };
     // Applying spawns powercfg and touches the display, so no lock is held.
     let result = st.wmi().and_then(|w| power::apply_decision(w.as_ref(), &decision));
+    let (ab, igpu) = {
+        let cfg = st.config.lock().unwrap();
+        (cfg.afterburner, cfg.igpu_on_battery)
+    };
+    let installed = afterburner::exe().map(|_| true);
+    let actions = afterburner::plan(decision.profile, installed, installed.is_some() && afterburner::running(), &ab, igpu);
+    if !actions.is_empty() {
+        thread::spawn(move || afterburner::run(&actions));
+    }
     {
         let mut p = st.power.lock().unwrap();
         p.last = Some(decision);

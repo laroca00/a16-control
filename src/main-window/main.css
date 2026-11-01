@@ -461,3 +461,25 @@
 .toggle__switch--on::after {
   transform: translateX(18px);
 }
+
+.ab-profiles {
+  display: flex;
+  gap: 16px;
+}
+
+.ab-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+}
+
+.ab-profile select {
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(11 24 70 / 0.6);
+  color: var(--glaze);
+  font: inherit;
+}

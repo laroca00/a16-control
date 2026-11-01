@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::afterburner::AbOptions;
 use crate::keyboard::KeyboardSettings;
 use crate::power::{Options, UiMode};
 
@@ -17,6 +18,7 @@ pub struct Config {
     pub kb_rainbow: bool,
     pub igpu_on_battery: bool,
     pub gpu_auto_reset: bool,
+    pub afterburner: AbOptions,
 }
 
 impl Default for Config {
@@ -31,6 +33,7 @@ impl Default for Config {
             kb_rainbow: false,
             igpu_on_battery: true,
             gpu_auto_reset: false,
+            afterburner: AbOptions { enabled: false, oc_profile: 1, stock_profile: 5 },
         }
     }
 }

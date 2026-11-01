@@ -41,6 +41,9 @@ export type DisplayView = { brightness: number | null; refresh: number | null; r
 
 export type GpuView = { state: "d0" | "d3" | "other" | null; igpuOnBattery: boolean; autoReset: boolean };
 
+export type AbOptions = { enabled: boolean; ocProfile: number; stockProfile: number };
+export type AfterburnerView = { installed: boolean; options: AbOptions };
+
 export type PowerView = {
   mode: UiMode;
   profile: ProfileId | null;
@@ -71,6 +74,8 @@ export const api = {
   setKeyboardColor: (rgb: Rgb) => invoke<KeyboardView>("set_keyboard_color", { rgb }),
   setKeyboardBrightness: (value: number) => invoke<KeyboardView>("set_keyboard_brightness", { value }),
   setKeyboardRainbow: (on: boolean) => invoke<KeyboardView>("set_keyboard_rainbow", { on }),
+  getAfterburner: () => invoke<AfterburnerView>("get_afterburner"),
+  setAfterburner: (options: AbOptions) => invoke<AfterburnerView>("set_afterburner", { options }),
   getGpu: () => invoke<GpuView>("get_gpu"),
   setGpuOption: (key: "igpuOnBattery" | "autoReset", value: boolean) => invoke<GpuView>("set_gpu_option", { key, value }),
   getDisplay: () => invoke<DisplayView>("get_display"),

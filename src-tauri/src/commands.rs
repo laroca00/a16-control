@@ -4,6 +4,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
 use crate::display::{self, DisplayView};
+use crate::afterburner::{self, AbOptions};
 use crate::fan::FanMode;
 use crate::gpu::{GpuCtl, GpuView};
 use crate::keyboard::KeyboardView;
@@ -191,6 +192,32 @@ pub fn set_gpu_option(app: AppHandle, key: String, value: bool) -> Result<GpuVie
     Ok(gpu_view(&app))
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AfterburnerView {
+    installed: bool,
+    options: AbOptions,
+}
+
+#[tauri::command]
+pub fn get_afterburner(state: State<'_, AppState>) -> AfterburnerView {
+    AfterburnerView { installed: afterburner::exe().is_some(), options: state.config.lock().unwrap().afterburner }
+}
+
+#[tauri::command]
+pub fn set_afterburner(state: State<'_, AppState>, options: AbOptions) -> Result<AfterburnerView, String> {
+    let valid = 1..=5;
+    if !valid.contains(&options.oc_profile) || !valid.contains(&options.stock_profile) {
+        return Err("Afterburner profiles are numbered 1 to 5".into());
+    }
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.afterburner = options;
+        config::save(&cfg)?;
+    }
+    Ok(get_afterburner(state))
+}
+
 #[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
@@ -242,6 +269,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         screen_on,
         get_gpu,
         set_gpu_option,
+        get_afterburner,
+        set_afterburner,
         open_main,
         quit_app
     ]
