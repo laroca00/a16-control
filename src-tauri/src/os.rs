@@ -25,6 +25,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::elevation::tool;
 use crate::power::Refresh;
 
+/// Same memory layout as the Win32 GUID, so it can be passed to the API by value.
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Guid {
     pub data1: u32,
@@ -250,6 +252,34 @@ mod tests {
         println!("refresh {:?} max {:?}", current_refresh(), max_refresh());
         println!("fullscreen {}", foreground_fullscreen());
         println!("gpu3d {:?}", gpu_3d_util());
+    }
+
+    /// Flips the power-mode slider to performance and back:
+    /// `cargo test os::tests::overlay_probe -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn overlay_probe() {
+        let read = || {
+            std::process::Command::new("reg")
+                .args(["query", r"HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes", "/v", "ActiveOverlayAcPowerScheme"])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).lines().filter(|l| l.contains("Overlay")).collect::<String>())
+                .unwrap_or_default()
+        };
+        println!("before {}", read());
+        println!("set performance -> {}", set_overlay(crate::power::OVERLAY_PERFORMANCE));
+        println!("after  {}", read());
+        println!("set balanced -> {}", set_overlay(crate::power::OVERLAY_BALANCED));
+        println!("back   {}", read());
+    }
+
+    #[test]
+    fn guid_layout_matches_windows() {
+        let ours = parse_guid("ded574b5-45a0-4f42-8737-46345c09c238").unwrap();
+        let theirs = windows::core::GUID::from_u128(0xded574b5_45a0_4f42_8737_46345c09c238);
+        let a: [u8; 16] = unsafe { std::mem::transmute(ours) };
+        let b: [u8; 16] = unsafe { std::mem::transmute(theirs) };
+        assert_eq!(a, b);
     }
 
     #[test]
