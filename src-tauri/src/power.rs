@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::fan::{self, FanMode};
 use crate::hw::{GbWmi, HwError};
+use crate::os;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -282,6 +283,56 @@ impl Controller {
     }
 }
 
+/// What the UI shows about power: the chosen mode, what is applied and why.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PowerView {
+    pub mode: UiMode,
+    pub profile: Option<ProfileId>,
+    pub reason: Option<Reason>,
+    pub limits: Option<Limits>,
+    pub options: Options,
+    pub last_error: Option<String>,
+}
+
+pub fn view(mode: UiMode, last: Option<&Decision>, options: Options, error: Option<&str>) -> PowerView {
+    PowerView {
+        mode,
+        profile: last.map(|d| d.profile),
+        reason: last.map(|d| d.reason),
+        limits: last.map(|d| clamp(profile(d.profile).limits)),
+        options,
+        last_error: error.map(str::to_string),
+    }
+}
+
+pub fn with_option(mut o: Options, key: &str, value: bool) -> Result<Options, String> {
+    match key {
+        "autoGame" => o.auto_game = value,
+        "acdcSwitch" => o.acdc_switch = value,
+        other => return Err(format!("unknown power option {other:?}")),
+    }
+    Ok(o)
+}
+
+/// Applies a decision: firmware first, then the Windows levers. Firmware
+/// errors are reported but do not stop the rest.
+pub fn apply_decision(wmi: &dyn GbWmi, d: &Decision) -> Result<(), String> {
+    let p = profile(d.profile);
+    let firmware = apply_firmware(wmi, &p).map_err(|e| e.to_string());
+    os::set_overlay(p.overlay);
+    if d.displays {
+        os::set_refresh(p.refresh);
+        if let Some(pct) = p.brightness {
+            os::set_brightness(pct);
+        }
+    }
+    if p.id == ProfileId::Battery {
+        os::tune_battery_plan();
+    }
+    firmware
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,6 +447,25 @@ mod tests {
             assert!(c.wants_gpu_counter(&fs, &GAME));
             assert!(!c.wants_gpu_counter(&fs, &OFF));
         }
+    }
+
+    #[test]
+    fn power_view_reports_limits_of_current_profile() {
+        let d = Decision { profile: ProfileId::Performance, displays: true, reason: Reason::UserPerformance };
+        let opts = Options { auto_game: true, acdc_switch: false };
+        let v = view(UiMode::Performance, Some(&d), opts, None);
+        assert_eq!(v.profile, Some(ProfileId::Performance));
+        assert_eq!(v.limits, Some(Limits { fppt: 80_000, sppt: 65_000, spl: 40_000 }));
+        assert_eq!(v.options, opts);
+        assert!(view(UiMode::Auto, None, opts, None).limits.is_none());
+    }
+
+    #[test]
+    fn unknown_option_is_rejected() {
+        let o = Options { auto_game: false, acdc_switch: true };
+        assert_eq!(with_option(o, "autoGame", true).unwrap(), Options { auto_game: true, acdc_switch: true });
+        assert_eq!(with_option(o, "acdcSwitch", false).unwrap(), Options { auto_game: false, acdc_switch: false });
+        assert!(with_option(o, "turbo", true).is_err());
     }
 
     #[test]

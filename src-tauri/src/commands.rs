@@ -4,6 +4,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
 use crate::fan::FanMode;
+use crate::power::{self, PowerView, UiMode};
 use crate::setup::{self, SetupStatus, TASK_NAME};
 use crate::state::{self, AppState};
 use crate::telemetry::Telemetry;
@@ -75,6 +76,35 @@ pub async fn run_uninstall(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn get_power(state: State<'_, AppState>) -> PowerView {
+    state.power_view()
+}
+
+#[tauri::command]
+pub async fn set_power_mode(app: AppHandle, mode: UiMode) -> Result<PowerView, String> {
+    joined(
+        spawn_blocking(move || {
+            app.state::<AppState>().power.lock().unwrap().controller.set_mode(mode);
+            crate::power_tick(&app);
+            app.state::<AppState>().power_view()
+        })
+        .await,
+    )
+}
+
+#[tauri::command]
+pub fn set_power_option(state: State<'_, AppState>, key: String, value: bool) -> Result<PowerView, String> {
+    {
+        let mut cfg = state.config.lock().unwrap();
+        let o = power::with_option(cfg.power_options(), &key, value)?;
+        cfg.auto_game = o.auto_game;
+        cfg.acdc_switch = o.acdc_switch;
+        config::save(&cfg)?;
+    }
+    Ok(state.power_view())
+}
+
+#[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
 }
@@ -111,6 +141,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         run_uninstall,
         get_config,
         set_lang,
+        get_power,
+        set_power_mode,
+        set_power_option,
         open_main,
         quit_app
     ]

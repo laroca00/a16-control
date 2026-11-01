@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use crate::config::Config;
 use crate::fan::{self, FanMode};
 use crate::hw::{GbWmi, HwError};
+use crate::power::{self, Controller, Decision, PowerView};
 use crate::telemetry::{self, Telemetry};
 
 pub type Connector = Box<dyn Fn() -> Result<Arc<dyn GbWmi>, HwError> + Send + Sync>;
@@ -22,6 +23,13 @@ pub struct AppState {
     retry_every: Duration,
     pub fan_lock: Mutex<()>,
     pub config: Mutex<Config>,
+    pub power: Mutex<PowerState>,
+}
+
+pub struct PowerState {
+    pub controller: Controller,
+    pub last: Option<Decision>,
+    pub error: Option<String>,
 }
 
 impl AppState {
@@ -36,6 +44,7 @@ impl AppState {
             last_attempt: Mutex::new(None),
             retry_every,
             fan_lock: Mutex::new(()),
+            power: Mutex::new(PowerState { controller: Controller::new(config.power_mode), last: None, error: None }),
             config: Mutex::new(config),
         }
     }
@@ -70,6 +79,14 @@ impl AppState {
     pub fn telemetry(&self) -> Result<Telemetry, String> {
         let wmi = self.wmi()?;
         telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())
+    }
+}
+
+impl AppState {
+    pub fn power_view(&self) -> PowerView {
+        let options = self.config.lock().unwrap().power_options();
+        let p = self.power.lock().unwrap();
+        power::view(p.controller.mode(), p.last.as_ref(), options, p.error.as_deref())
     }
 }
 

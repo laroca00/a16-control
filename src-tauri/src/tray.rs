@@ -1,12 +1,13 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use tauri::menu::{CheckMenuItem, Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 
 use crate::commands::lang;
 use crate::fan::{self, FanMode};
+use crate::power::UiMode;
 use crate::state::{self, AppState};
 use crate::telemetry::Telemetry;
 
@@ -15,26 +16,46 @@ const TRAY_ID: &str = "main";
 pub struct TrayItems {
     open: MenuItem<Wry>,
     fan: CheckMenuItem<Wry>,
+    power: Submenu<Wry>,
+    modes: [(UiMode, CheckMenuItem<Wry>); 3],
     quit: MenuItem<Wry>,
     /// When the panel last hid itself on blur; the click that caused the
     /// blur must not immediately re-open it.
     panel_hidden_at: Mutex<Option<Instant>>,
 }
 
-fn labels(lang: &str) -> (&'static str, &'static str, &'static str) {
+struct Labels {
+    open: &'static str,
+    fan: &'static str,
+    power: &'static str,
+    modes: [&'static str; 3],
+    quit: &'static str,
+}
+
+fn labels(lang: &str) -> Labels {
     match lang {
-        "tr" => ("Aç", "Max Fan", "Çıkış"),
-        _ => ("Open", "Max Fan", "Exit"),
+        "tr" => Labels { open: "Aç", fan: "Max Fan", power: "Güç modu", modes: ["Pil", "Auto", "Performans"], quit: "Çıkış" },
+        _ => Labels { open: "Open", fan: "Max Fan", power: "Power mode", modes: ["Battery", "Auto", "Performance"], quit: "Exit" },
     }
 }
 
+const MODE_IDS: [(UiMode, &str); 3] =
+    [(UiMode::Battery, "mode-battery"), (UiMode::Auto, "mode-auto"), (UiMode::Performance, "mode-performance")];
+
 pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
-    let (open_l, fan_l, quit_l) = labels(&lang(app));
-    let open = MenuItem::with_id(app, "open", open_l, true, None::<&str>)?;
-    let fan = CheckMenuItem::with_id(app, "fan", fan_l, true, false, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", quit_l, true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &fan, &quit])?;
-    app.manage(TrayItems { open, fan, quit, panel_hidden_at: Mutex::new(None) });
+    let l = labels(&lang(app));
+    let current = app.state::<AppState>().power.lock().unwrap().controller.mode();
+    let open = MenuItem::with_id(app, "open", l.open, true, None::<&str>)?;
+    let fan = CheckMenuItem::with_id(app, "fan", l.fan, true, false, None::<&str>)?;
+    let mut items = Vec::new();
+    for (i, (mode, id)) in MODE_IDS.iter().enumerate() {
+        items.push((*mode, CheckMenuItem::with_id(app, *id, l.modes[i], true, *mode == current, None::<&str>)?));
+    }
+    let modes: [(UiMode, CheckMenuItem<Wry>); 3] = items.try_into().map_err(|_| tauri::Error::AssetNotFound("tray".into()))?;
+    let power = Submenu::with_items(app, l.power, true, &[&modes[0].1, &modes[1].1, &modes[2].1])?;
+    let quit = MenuItem::with_id(app, "quit", l.quit, true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &fan, &power, &quit])?;
+    app.manage(TrayItems { open, fan, power, modes, quit, panel_hidden_at: Mutex::new(None) });
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().cloned().expect("bundled icon"))
@@ -45,7 +66,11 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
             "open" => show_main(app),
             "fan" => toggle_fan(app),
             "quit" => self::quit(app),
-            _ => {}
+            id => {
+                if let Some((mode, _)) = MODE_IDS.iter().find(|(_, mid)| *mid == id) {
+                    set_mode_from_tray(app, *mode);
+                }
+            }
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
@@ -63,16 +88,38 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
 
 pub fn relabel(app: &AppHandle) {
     let items = app.state::<TrayItems>();
-    let (open_l, fan_l, quit_l) = labels(&lang(app));
-    let _ = items.open.set_text(open_l);
-    let _ = items.fan.set_text(fan_l);
-    let _ = items.quit.set_text(quit_l);
+    let l = labels(&lang(app));
+    let _ = items.open.set_text(l.open);
+    let _ = items.fan.set_text(l.fan);
+    let _ = items.power.set_text(l.power);
+    for (i, (_, item)) in items.modes.iter().enumerate() {
+        let _ = item.set_text(l.modes[i]);
+    }
+    let _ = items.quit.set_text(l.quit);
 }
 
 pub fn sync_fan_check(app: &AppHandle, t: Option<&Telemetry>) {
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.fan.set_checked(matches!(t, Some(t) if t.fan_mode == FanMode::Max));
     }
+}
+
+pub fn sync_power(app: &AppHandle, mode: UiMode) {
+    if let Some(items) = app.try_state::<TrayItems>() {
+        for (m, item) in &items.modes {
+            let _ = item.set_checked(*m == mode);
+        }
+    }
+}
+
+fn set_mode_from_tray(app: &AppHandle, mode: UiMode) {
+    let app = app.clone();
+    // Applying a mode spawns processes; keep the menu thread free.
+    std::thread::spawn(move || {
+        app.state::<AppState>().power.lock().unwrap().controller.set_mode(mode);
+        crate::power_tick(&app);
+        sync_power(&app, mode);
+    });
 }
 
 fn toggle_fan(app: &AppHandle) {

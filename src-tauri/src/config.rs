@@ -2,10 +2,27 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
+use crate::power::{Options, UiMode};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Config {
     pub lang: Option<String>,
+    pub power_mode: UiMode,
+    pub auto_game: bool,
+    pub acdc_switch: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config { lang: None, power_mode: UiMode::Auto, auto_game: false, acdc_switch: true }
+    }
+}
+
+impl Config {
+    pub fn power_options(&self) -> Options {
+        Options { auto_game: self.auto_game, acdc_switch: self.acdc_switch }
+    }
 }
 
 pub fn dir() -> PathBuf {
@@ -50,13 +67,38 @@ pub fn save(config: &Config) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    fn temp(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("gienemy-test-{}-{name}", std::process::id())).join("config.json")
+    }
+
     #[test]
     fn config_roundtrip() {
-        let dir = std::env::temp_dir().join(format!("gienemy-test-{}", std::process::id()));
-        let path = dir.join("config.json");
-        save_to(&path, &Config { lang: Some("tr".into()) }).unwrap();
-        assert_eq!(load_from(&path), Config { lang: Some("tr".into()) });
-        let _ = std::fs::remove_dir_all(&dir);
+        let path = temp("lang");
+        let cfg = Config { lang: Some("tr".into()), ..Config::default() };
+        save_to(&path, &cfg).unwrap();
+        assert_eq!(load_from(&path), cfg);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn config_roundtrip_keeps_power_fields() {
+        let path = temp("power");
+        let cfg = Config { lang: None, power_mode: UiMode::Performance, auto_game: true, acdc_switch: false };
+        save_to(&path, &cfg).unwrap();
+        assert_eq!(load_from(&path), cfg);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn older_config_gets_power_defaults() {
+        let path = temp("old");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"lang":"en"}"#).unwrap();
+        let cfg = load_from(&path);
+        assert_eq!(cfg.lang.as_deref(), Some("en"));
+        assert!(cfg.acdc_switch);
+        assert_eq!(cfg.power_mode, UiMode::Auto);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
     #[test]

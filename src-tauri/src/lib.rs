@@ -19,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 use crate::hw::com::ComWmi;
 use crate::hw::GbWmi;
+use crate::power::{Inputs, UiMode};
 use crate::state::{AppState, Connector};
 
 const TELEMETRY_INTERVAL: Duration = Duration::from_millis(1500);
@@ -65,6 +66,44 @@ fn any_window_visible(app: &AppHandle) -> bool {
         .any(|w| w.is_visible().unwrap_or(false))
 }
 
+/// Collects the power inputs, lets the controller decide and applies the
+/// result. Runs on every background tick and right after the user picks a mode.
+pub fn power_tick(app: &AppHandle) {
+    let st = app.state::<AppState>();
+    let options = st.config.lock().unwrap().power_options();
+    let (on_ac, battery_pct) = os::power_status();
+    let fullscreen = os::foreground_fullscreen();
+    let mut inputs = Inputs { now: std::time::Instant::now(), on_ac, battery_pct, fullscreen, gpu_util: None };
+    let wants_gpu = st.power.lock().unwrap().controller.wants_gpu_counter(&inputs, &options);
+    if wants_gpu {
+        inputs.gpu_util = os::gpu_3d_util();
+    }
+    let (decision, mode) = {
+        let mut p = st.power.lock().unwrap();
+        let d = p.controller.tick(&inputs, &options);
+        (d, p.controller.mode())
+    };
+    persist_mode(&st, mode);
+    let Some(decision) = decision else { return };
+    // Applying spawns powercfg and touches the display, so no lock is held.
+    let result = st.wmi().and_then(|w| power::apply_decision(w.as_ref(), &decision));
+    {
+        let mut p = st.power.lock().unwrap();
+        p.last = Some(decision);
+        p.error = result.err();
+    }
+    tray::sync_power(app, mode);
+    let _ = app.emit("power", st.power_view());
+}
+
+fn persist_mode(st: &AppState, mode: UiMode) {
+    let mut cfg = st.config.lock().unwrap();
+    if cfg.power_mode != mode {
+        cfg.power_mode = mode;
+        let _ = config::save(&cfg);
+    }
+}
+
 /// One loop for the show-window requests and telemetry. Telemetry is only
 /// read while someone can see it.
 fn spawn_background(app: AppHandle) {
@@ -74,6 +113,7 @@ fn spawn_background(app: AppHandle) {
             let _ = std::fs::remove_file(&request);
             tray::show_main(&app);
         }
+        power_tick(&app);
         if any_window_visible(&app) {
             match app.state::<AppState>().telemetry() {
                 Ok(t) => {
