@@ -92,7 +92,9 @@ impl AppState {
     /// An explicit power mode choice; it also ends any manual fan override.
     pub fn choose_mode(&self, mode: power::UiMode) {
         *self.manual_fan.lock().unwrap() = None;
-        self.power.lock().unwrap().controller.set_mode(mode);
+        let mut p = self.power.lock().unwrap();
+        p.failed_at = None;
+        p.controller.set_mode(mode);
     }
 
     pub fn power_view(&self) -> PowerView {
