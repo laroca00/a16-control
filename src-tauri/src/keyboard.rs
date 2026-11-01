@@ -2,6 +2,8 @@
 //! lamp; colour goes in a LampRangeUpdate feature report and brightness is
 //! applied by scaling the colour, because the lamp's intensity is on/off.
 
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
 use std::time::Duration;
 
 const REPORT_LEN: usize = 51;
@@ -74,9 +76,164 @@ pub fn is_resume(gap: Duration) -> bool {
     gap >= RESUME_GAP
 }
 
+pub trait LampDevice: Send {
+    fn write(&mut self, report: &[u8]) -> Result<(), String>;
+}
+
+type Request = ([u8; 3], u8);
+type Shared = Arc<(Mutex<Option<Request>>, Condvar)>;
+
+const RETRY_CAP: Duration = Duration::from_secs(15);
+
+/// Writes colours from a background thread so HID I/O never blocks the UI.
+/// Only the newest request matters: a slider drag queues nothing.
+pub struct Lamp {
+    shared: Shared,
+}
+
+impl Lamp {
+    pub fn start(opener: impl Fn() -> Option<Box<dyn LampDevice>> + Send + 'static) -> Lamp {
+        Self::start_with(opener, Duration::from_secs(1))
+    }
+
+    pub fn start_with(opener: impl Fn() -> Option<Box<dyn LampDevice>> + Send + 'static, retry: Duration) -> Lamp {
+        let shared: Shared = Arc::new((Mutex::new(None), Condvar::new()));
+        let worker = shared.clone();
+        thread::Builder::new()
+            .name("lamp".into())
+            .spawn(move || run(worker, opener, retry))
+            .expect("lamp thread");
+        Lamp { shared }
+    }
+
+    pub fn set(&self, rgb: [u8; 3], brightness: u8) {
+        let (lock, cvar) = &*self.shared;
+        *lock.lock().unwrap() = Some((rgb, brightness));
+        cvar.notify_one();
+    }
+}
+
+fn run(shared: Shared, opener: impl Fn() -> Option<Box<dyn LampDevice>>, retry: Duration) {
+    let (lock, cvar) = &*shared;
+    let mut device: Option<Box<dyn LampDevice>> = None;
+    loop {
+        let mut req = {
+            let mut pending = lock.lock().unwrap();
+            while pending.is_none() {
+                pending = cvar.wait(pending).unwrap();
+            }
+            pending.take().unwrap()
+        };
+        // The keyboard can be missing for a while after sleep or a driver
+        // reload: keep retrying with backoff, but jump to a newer request.
+        let mut delay = retry;
+        while !write(&mut device, &opener, req) {
+            let pending = lock.lock().unwrap();
+            let (mut pending, _) = cvar.wait_timeout(pending, delay).unwrap();
+            if let Some(newer) = pending.take() {
+                req = newer;
+            }
+            delay = (delay * 2).min(RETRY_CAP);
+        }
+    }
+}
+
+fn write(device: &mut Option<Box<dyn LampDevice>>, opener: &impl Fn() -> Option<Box<dyn LampDevice>>, req: Request) -> bool {
+    // A handle from before sleep can be stale; drop it and try once fresh.
+    for _ in 0..2 {
+        if device.is_none() {
+            *device = opener();
+        }
+        let Some(dev) = device.as_mut() else { return false };
+        if dev.write(&control_report()).and_then(|_| dev.write(&color_report(req.0, req.1))).is_ok() {
+            return true;
+        }
+        *device = None;
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod lamp {
+        use super::super::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc, Mutex};
+        use std::time::Instant;
+
+        type Log = Arc<Mutex<Vec<Vec<u8>>>>;
+
+        struct FakeLamp(Log);
+        impl LampDevice for FakeLamp {
+            fn write(&mut self, report: &[u8]) -> Result<(), String> {
+                self.0.lock().unwrap().push(report.to_vec());
+                Ok(())
+            }
+        }
+
+        fn wait_for(log: &Log, n: usize) -> Vec<Vec<u8>> {
+            let t = Instant::now();
+            while log.lock().unwrap().len() < n && t.elapsed() < Duration::from_secs(3) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+            log.lock().unwrap().clone()
+        }
+
+        #[test]
+        fn lamp_writes_control_then_color() {
+            let log: Log = Default::default();
+            let l = log.clone();
+            let lamp = Lamp::start_with(move || Some(Box::new(FakeLamp(l.clone())) as Box<dyn LampDevice>), Duration::from_millis(10));
+            lamp.set([255, 0, 0], 100);
+            let written = wait_for(&log, 2);
+            assert_eq!(written, vec![control_report(), color_report([255, 0, 0], 100)]);
+        }
+
+        #[test]
+        fn lamp_applies_only_latest_request() {
+            let log: Log = Default::default();
+            let present = Arc::new(AtomicUsize::new(0));
+            let (l, p) = (log.clone(), present.clone());
+            let lamp = Lamp::start_with(
+                move || (p.load(Ordering::SeqCst) == 1).then(|| Box::new(FakeLamp(l.clone())) as Box<dyn LampDevice>),
+                Duration::from_millis(20),
+            );
+            lamp.set([1, 1, 1], 100);
+            lamp.set([2, 2, 2], 100);
+            lamp.set([3, 3, 3], 100);
+            present.store(1, Ordering::SeqCst);
+            let written = wait_for(&log, 2);
+            assert_eq!(written, vec![control_report(), color_report([3, 3, 3], 100)]);
+        }
+
+        #[test]
+        fn lamp_retries_until_device_appears() {
+            let log: Log = Default::default();
+            let opens = Arc::new(AtomicUsize::new(0));
+            let (l, o) = (log.clone(), opens.clone());
+            let lamp = Lamp::start_with(
+                move || (o.fetch_add(1, Ordering::SeqCst) >= 2).then(|| Box::new(FakeLamp(l.clone())) as Box<dyn LampDevice>),
+                Duration::from_millis(10),
+            );
+            lamp.set([0, 0, 255], 50);
+            let written = wait_for(&log, 2);
+            assert_eq!(written.last().unwrap(), &color_report([0, 0, 255], 50));
+            assert!(opens.load(Ordering::SeqCst) >= 3);
+        }
+    }
+
+    /// Writes a colour to the real keyboard:
+    /// `cargo test keyboard::tests::hid_probe -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn hid_probe() {
+        let mut dev = crate::hw::hid::open_lamp().expect("lamp interface");
+        println!("control {:?}", dev.write(&control_report()));
+        println!("color {:?}", dev.write(&color_report([64, 0, 64], 53)));
+    }
 
     #[test]
     fn control_report_takes_host_control() {

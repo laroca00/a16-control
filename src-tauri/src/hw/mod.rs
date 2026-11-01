@@ -4,6 +4,7 @@
 #[cfg(test)]
 pub mod fake;
 pub mod com;
+pub mod hid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HwError {
