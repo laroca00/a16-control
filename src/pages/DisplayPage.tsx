@@ -6,6 +6,8 @@ import { LiquidGlass } from "../ui/LiquidGlass";
 export function DisplayPage() {
   const t = useT();
   const [d, setD] = useState<DisplayView | null>(null);
+  // Brightness writes go through WMI one by one; send only where the drag ends.
+  const [draft, setDraft] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -20,6 +22,14 @@ export function DisplayPage() {
 
   const run = (p: Promise<DisplayView>) => p.then(setD).catch(() => {});
 
+  const commitBrightness = () => {
+    if (draft == null) return;
+    const value = draft;
+    setDraft(null);
+    setD((v) => (v ? { ...v, brightness: value } : v));
+    run(api.setBrightness(value));
+  };
+
   return (
     <div className="page page--display">
       <h1 className="page__title">{t("navDisplay")}</h1>
@@ -33,11 +43,14 @@ export function DisplayPage() {
               max={100}
               step={5}
               aria-label={t("dispBrightness")}
-              value={d?.brightness ?? 50}
+              value={draft ?? d?.brightness ?? 50}
               disabled={d?.brightness == null}
-              onChange={(e) => run(api.setBrightness(Number(e.target.value)))}
+              onChange={(e) => setDraft(Number(e.target.value))}
+              onPointerUp={commitBrightness}
+              onKeyUp={commitBrightness}
+              onBlur={commitBrightness}
             />
-            <output>{d?.brightness ?? "–"}%</output>
+            <output>{draft ?? d?.brightness ?? "–"}%</output>
           </label>
         </LiquidGlass>
 

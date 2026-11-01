@@ -33,7 +33,13 @@ function renderPage() {
 
 test("display page sends brightness and refresh", async () => {
   renderPage();
-  fireEvent.change(await screen.findByRole("slider", { name: "Screen brightness" }), { target: { value: "55" } });
+  const slider = await screen.findByRole("slider", { name: "Screen brightness" });
+  fireEvent.change(slider, { target: { value: "40" } });
+  fireEvent.change(slider, { target: { value: "55" } });
+  // Dragging only moves the slider; the panel changes once, on release.
+  expect(api.setBrightness).not.toHaveBeenCalled();
+  fireEvent.pointerUp(slider);
+  expect(api.setBrightness).toHaveBeenCalledTimes(1);
   expect(api.setBrightness).toHaveBeenCalledWith(55);
   await userEvent.click(screen.getByRole("radio", { name: "60 Hz" }));
   expect(api.setRefreshRate).toHaveBeenCalledWith(60);
