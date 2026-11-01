@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use gienemy_lib::elevation::{self, StartupAction};
-use gienemy_lib::{cli, setup};
+use gienemy_lib::{cli, config, setup};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -9,6 +9,9 @@ fn main() {
     match elevation::startup_action(elevated, setup::task_exists(), cli::is_cli(&args)) {
         StartupAction::Cli => std::process::exit(cli::run(&args, elevated)),
         StartupAction::RelaunchViaTask => {
+            // A manual launch wants a window, whether or not an instance is running.
+            let _ = std::fs::create_dir_all(config::dir());
+            let _ = std::fs::write(config::show_request_path(), b"");
             if elevation::launch_via_task().is_ok() {
                 return;
             }
