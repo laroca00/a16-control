@@ -108,7 +108,33 @@ fn run_ok(program: &str, args: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
+pub fn task_command_matches(task_xml: &str, exe: &Path) -> bool {
+    let wanted = format!("<command>{}</command>", xml_escape(&exe.display().to_string())).to_lowercase();
+    task_xml.to_lowercase().contains(&wanted)
+}
+
+/// True only when the task starts this very exe. After an update or a move
+/// a stale task would launch the old copy, so it counts as missing.
 pub fn task_exists() -> bool {
+    let Ok(exe) = std::env::current_exe() else { return false };
+    hidden(Command::new("schtasks").args(["/query", "/tn", TASK_NAME, "/xml"]))
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .is_some_and(|o| task_command_matches(&decode_task_xml(&o.stdout), &exe))
+}
+
+/// `schtasks /xml` prints UTF-16 on some systems and the console code page on others.
+fn decode_task_xml(bytes: &[u8]) -> String {
+    if bytes.starts_with(&[0xFF, 0xFE]) || (bytes.len() > 1 && bytes[1] == 0) {
+        let units: Vec<u16> = bytes.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+fn task_registered() -> bool {
     run_ok("schtasks", &["/query", "/tn", TASK_NAME])
 }
 
@@ -185,9 +211,11 @@ pub fn install(exe: &Path) -> Result<(), String> {
 /// Removes the logon task. The WMI classes stay: Gigabyte's software uses
 /// the same ones.
 pub fn uninstall() -> Result<(), String> {
-    if !task_exists() {
+    if !task_registered() {
         return Ok(());
     }
+    // Stops the running copy so the uninstaller can delete its files.
+    let _ = run_ok("schtasks", &["/end", "/tn", TASK_NAME]);
     if run_ok("schtasks", &["/delete", "/tn", TASK_NAME, "/f"]) {
         Ok(())
     } else {
@@ -220,6 +248,15 @@ mod tests {
     fn task_xml_escapes_path() {
         let x = task_xml(Path::new(r"C:\R&D\GiENEMY.exe"), r"PC\u");
         assert!(x.contains(r"C:\R&amp;D\GiENEMY.exe"));
+    }
+
+    #[test]
+    fn task_matches_only_its_own_exe() {
+        let exe = Path::new(r"C:\Users\u\AppData\Local\GiENEMY\GiENEMY.exe");
+        let xml = task_xml(exe, r"PC\u");
+        assert!(task_command_matches(&xml, exe));
+        assert!(task_command_matches(&xml.to_uppercase(), exe));
+        assert!(!task_command_matches(&xml, Path::new(r"C:\dev\a16-control\src-tauri\target\debug\GiENEMY.exe")));
     }
 
     #[test]

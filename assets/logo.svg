@@ -1,1 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0b1846"/><circle cx="256" cy="256" r="150" fill="none" stroke="#d6b46a" stroke-width="36"/><circle cx="256" cy="256" r="40" fill="#2f55c8"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f55c8"/>
+      <stop offset="1" stop-color="#0b1846"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#d2412f"/>
+      <stop offset="1" stop-color="#d6b46a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <!-- Two 270° rings, open at the bottom, like the app's fan dial. -->
+  <g fill="none" stroke-linecap="round" stroke-width="30" transform="rotate(135 256 256)">
+    <circle cx="256" cy="256" r="178" stroke="url(#hot)" stroke-dasharray="838.8 2000"/>
+    <circle cx="256" cy="256" r="128" stroke="#1c9c92" stroke-dasharray="603.2 2000"/>
+  </g>
+  <!-- Three-blade fan hub. -->
+  <g fill="#eef2ec">
+    <path id="blade" d="M256 256 C 236 214, 244 176, 280 168 C 300 196, 290 232, 256 256 Z"/>
+    <use href="#blade" transform="rotate(120 256 256)"/>
+    <use href="#blade" transform="rotate(240 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="20" fill="#d6b46a"/>
+</svg>
