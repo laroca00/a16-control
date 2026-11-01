@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod fan;
 pub mod hw;
 pub mod telemetry;
