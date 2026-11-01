@@ -5,6 +5,9 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, FOLDERID_ProgramFilesX86, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+
 use crate::elevation::tool;
 use crate::power::ProfileId;
 
@@ -22,11 +25,23 @@ pub enum AbAction {
     Close,
 }
 
+fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
+    unsafe {
+        let p = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
+        let path = p.to_string().ok().map(PathBuf::from);
+        CoTaskMemFree(Some(p.0 as *const _));
+        path
+    }
+}
+
+/// Afterburner's exe. The folders come from the shell, not from environment
+/// variables, which a non-elevated process could point at its own copy for
+/// this elevated app to launch.
 pub fn exe() -> Option<PathBuf> {
-    ["ProgramFiles(x86)", "ProgramFiles"]
+    [FOLDERID_ProgramFilesX86, FOLDERID_ProgramFiles]
         .iter()
-        .filter_map(|v| std::env::var_os(v))
-        .map(|base| PathBuf::from(base).join(r"MSI Afterburner\MSIAfterburner.exe"))
+        .filter_map(known_folder)
+        .map(|base| base.join(r"MSI Afterburner\MSIAfterburner.exe"))
         .find(|p| p.exists())
 }
 
