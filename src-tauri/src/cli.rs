@@ -7,6 +7,7 @@ use windows::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
 
 use crate::elevation;
 use crate::fan::{self, FanMode};
+use crate::power::{self, Decision, ProfileId, Reason};
 use crate::setup;
 use crate::hw::com::ComWmi;
 use crate::hw::GbWmi;
@@ -15,7 +16,7 @@ use crate::telemetry;
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("--probe" | "--fan" | "--install" | "--uninstall")
+        Some("--probe" | "--fan" | "--power" | "--install" | "--uninstall")
     )
 }
 
@@ -76,7 +77,18 @@ fn execute(args: &[String]) -> Result<String, String> {
             fan::apply(&wmi, mode).map_err(|e| e.to_string())?;
             probe(&wmi)
         }
-        _ => Err("usage: GiENEMY.exe --probe | --fan max|auto".into()),
+        (Some("--power"), Some(mode)) => {
+            let profile = match mode {
+                "battery" => ProfileId::Battery,
+                "balanced" => ProfileId::BalancedAc,
+                "performance" => ProfileId::Performance,
+                other => return Err(format!("unknown power mode {other:?}, use battery, balanced or performance")),
+            };
+            let decision = Decision { profile, displays: true, reason: Reason::UserBattery };
+            power::apply_decision(&wmi, &decision)?;
+            probe(&wmi)
+        }
+        _ => Err("usage: GiENEMY.exe --probe | --fan max|auto | --power battery|balanced|performance".into()),
     }
 }
 
