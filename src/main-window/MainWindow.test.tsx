@@ -5,6 +5,7 @@ import { api } from "../api";
 import { MainWindow } from "./MainWindow";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
+vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ minimize: vi.fn(), toggleMaximize: vi.fn(), hide: vi.fn() }) }));
 vi.mock("../api", async (orig) => {
   const real = await orig<typeof import("../api")>();
   return {

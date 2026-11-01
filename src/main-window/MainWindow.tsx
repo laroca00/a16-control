@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TitleBar } from "../components/TitleBar";
 import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../components/Notices";
 import { useFanControl } from "../hooks/useFanControl";
 import { ComingSoon } from "../pages/ComingSoon";
@@ -16,6 +17,7 @@ export function MainWindow() {
   return (
     <div className="main">
       <ShaderGradient className="main__backdrop" colors={["#0b1846", "#2f55c8", "#1c9c92"]} brightness={0.85} />
+      <TitleBar />
       <Sidebar page={page} onSelect={setPage} />
       <main className="main__content">
         {(control.needsSetup || control.unsupported || control.status?.keyboardLight) && (

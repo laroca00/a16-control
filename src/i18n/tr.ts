@@ -29,6 +29,10 @@ export const tr: Record<keyof typeof en, string> = {
   klTitle: "KeyboardLight hâlâ yüklü",
   klBody: "İkisi aynı fanları yönetip birbirinin ayarını bozuyor. KeyboardLight'ı kaldır.",
 
+  winMinimize: "Küçült",
+  winMaximize: "Büyüt",
+  winClose: "Tray'e gizle",
+
   navOverview: "Genel",
   navFan: "Fan",
   navPower: "Güç",

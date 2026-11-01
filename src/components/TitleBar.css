@@ -1,0 +1,48 @@
+.titlebar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  height: 40px;
+  padding: 6px 10px 0;
+}
+
+.titlebar__buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.titlebar__button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--glaze-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-quick) var(--ease),
+    color var(--duration-quick) var(--ease);
+}
+
+.titlebar__button svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.titlebar__button:hover {
+  background: rgb(255 255 255 / 0.12);
+  color: var(--glaze);
+}
+
+.titlebar__button--close:hover {
+  background: var(--bole);
+}

@@ -27,6 +27,10 @@ export const en = {
   klTitle: "KeyboardLight is still installed",
   klBody: "Both drive the same fans and undo each other's settings. Uninstall KeyboardLight.",
 
+  winMinimize: "Minimize",
+  winMaximize: "Maximize",
+  winClose: "Close to tray",
+
   navOverview: "Overview",
   navFan: "Fan",
   navPower: "Power",

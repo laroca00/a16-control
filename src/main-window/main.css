@@ -4,7 +4,8 @@
   grid-template-columns: 208px 1fr;
   gap: 18px;
   height: 100%;
-  padding: 18px;
+  /* The top padding leaves room for the custom title bar. */
+  padding: 40px 18px 18px;
 }
 
 .main__backdrop {
