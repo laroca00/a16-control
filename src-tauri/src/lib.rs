@@ -33,7 +33,6 @@ pub fn run(needs_setup: bool, tray_start: bool) {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
-        .plugin(tauri_plugin_positioner::init())
         .manage(state)
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {

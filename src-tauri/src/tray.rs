@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
-use tauri_plugin_positioner::{Position, WindowExt};
 
 use crate::commands::lang;
 use crate::fan::{self, FanMode};
@@ -49,9 +48,14 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            tauri_plugin_positioner::on_tray_event(tray.app_handle(), &event);
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                toggle_panel(tray.app_handle());
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                position,
+                ..
+            } = event
+            {
+                toggle_panel(tray.app_handle(), (position.x as i32, position.y as i32));
             }
         })
         .build(app)
@@ -88,7 +92,47 @@ pub fn panel_blurred(app: &AppHandle) {
     }
 }
 
-fn toggle_panel(app: &AppHandle) {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Area {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// Where the panel goes for a click at `anchor`. Taskbar replacements and
+/// docks report the tray rectangle unreliably, so this works from the click
+/// point: above it, or below it for a bar at the top, kept inside the
+/// monitor's work area.
+pub fn panel_position(anchor: (i32, i32), size: (i32, i32), work: Area, margin: i32) -> (i32, i32) {
+    let (w, h) = size;
+    let min_x = work.x + margin;
+    let max_x = (work.x + work.w - w - margin).max(min_x);
+    let min_y = work.y + margin;
+    let max_y = (work.y + work.h - h - margin).max(min_y);
+    let mut y = anchor.1 - h - margin;
+    if y < min_y {
+        y = anchor.1 + margin;
+    }
+    ((anchor.0 - w / 2).clamp(min_x, max_x), y.clamp(min_y, max_y))
+}
+
+fn place_panel(app: &AppHandle, w: &tauri::WebviewWindow, anchor: (i32, i32)) {
+    let Ok(size) = w.outer_size() else { return };
+    let monitor = app
+        .monitor_from_point(anchor.0 as f64, anchor.1 as f64)
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else { return };
+    let r = monitor.work_area();
+    let work = Area { x: r.position.x, y: r.position.y, w: r.size.width as i32, h: r.size.height as i32 };
+    let margin = (12.0 * monitor.scale_factor()) as i32;
+    let (x, y) = panel_position(anchor, (size.width as i32, size.height as i32), work, margin);
+    let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+fn toggle_panel(app: &AppHandle, anchor: (i32, i32)) {
     let Some(w) = app.get_webview_window("panel") else { return };
     let just_hidden = app
         .state::<TrayItems>()
@@ -100,7 +144,7 @@ fn toggle_panel(app: &AppHandle) {
         let _ = w.hide();
         return;
     }
-    let _ = w.move_window(Position::TrayBottomCenter);
+    place_panel(app, &w, anchor);
     let _ = w.show();
     let _ = w.set_focus();
 }
@@ -123,4 +167,33 @@ pub fn quit(app: &AppHandle) {
         }
     }
     app.exit(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SCREEN: Area = Area { x: 0, y: 0, w: 1920, h: 1032 };
+
+    #[test]
+    fn panel_sits_above_the_click_inside_the_work_area() {
+        assert_eq!(panel_position((1800, 1060), (360, 440), SCREEN, 12), (1548, 580));
+    }
+
+    #[test]
+    fn panel_stays_above_a_dock_that_reserves_no_space() {
+        let full = Area { x: 0, y: 0, w: 1920, h: 1080 };
+        assert_eq!(panel_position((960, 1070), (360, 440), full, 12), (780, 618));
+    }
+
+    #[test]
+    fn panel_drops_below_a_top_bar() {
+        assert_eq!(panel_position((100, 10), (360, 440), Area { x: 0, y: 40, w: 1920, h: 1040 }, 12), (12, 52));
+    }
+
+    #[test]
+    fn panel_respects_a_second_monitor_offset() {
+        let right = Area { x: 1920, y: 0, w: 2560, h: 1400 };
+        assert_eq!(panel_position((4400, 1430), (360, 440), right, 12), (4108, 948));
+    }
 }
