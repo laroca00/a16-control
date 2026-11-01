@@ -44,6 +44,9 @@ export type GpuView = { state: "d0" | "d3" | "other" | null; igpuOnBattery: bool
 export type AbOptions = { enabled: boolean; ocProfile: number; stockProfile: number };
 export type AfterburnerView = { installed: boolean; options: AbOptions };
 
+export type BatterySummary = { avgWatts: number | null; avgCpu: number; idlePct: number; targets: string[]; minutes: number };
+export type BatteryView = { watching: boolean; progress: number; summary: BatterySummary | null; ecoEnabled: boolean; targets: string[] };
+
 export type PowerView = {
   mode: UiMode;
   profile: ProfileId | null;
@@ -76,6 +79,10 @@ export const api = {
   setKeyboardRainbow: (on: boolean) => invoke<KeyboardView>("set_keyboard_rainbow", { on }),
   getAfterburner: () => invoke<AfterburnerView>("get_afterburner"),
   setAfterburner: (options: AbOptions) => invoke<AfterburnerView>("set_afterburner", { options }),
+  getBattery: () => invoke<BatteryView>("get_battery"),
+  startWatch: () => invoke<BatteryView>("start_watch"),
+  cancelWatch: () => invoke<BatteryView>("cancel_watch"),
+  setEcoEnabled: (on: boolean) => invoke<BatteryView>("set_eco_enabled", { on }),
   getGpu: () => invoke<GpuView>("get_gpu"),
   setGpuOption: (key: "igpuOnBattery" | "autoReset", value: boolean) => invoke<GpuView>("set_gpu_option", { key, value }),
   getDisplay: () => invoke<DisplayView>("get_display"),

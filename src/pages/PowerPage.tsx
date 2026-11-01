@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, type AbOptions, type AfterburnerView, type GpuView, type PowerOptions } from "../api";
+import { listen } from "@tauri-apps/api/event";
+import { api, type AbOptions, type AfterburnerView, type BatteryView, type GpuView, type PowerOptions } from "../api";
 import { ModeSwitch } from "../components/ModeSwitch";
 import { usePower } from "../hooks/usePower";
 import { useT, type Key } from "../i18n";
@@ -38,11 +39,24 @@ export function PowerPage() {
   const { power, setMode, setOption } = usePower();
   const [gpu, setGpu] = useState<GpuView | null>(null);
   const [ab, setAb] = useState<AfterburnerView | null>(null);
+  const [battery, setBattery] = useState<BatteryView | null>(null);
+  const [watchError, setWatchError] = useState(false);
 
   useEffect(() => {
     api.getGpu().then(setGpu).catch(() => {});
     api.getAfterburner().then(setAb).catch(() => {});
+    api.getBattery().then(setBattery).catch(() => {});
+    const un = listen<BatteryView>("battery", (e) => setBattery(e.payload));
+    return () => void un.then((f) => f());
   }, []);
+
+  const startWatch = () => {
+    setWatchError(false);
+    api
+      .startWatch()
+      .then(setBattery)
+      .catch(() => setWatchError(true));
+  };
 
   const changeAb = (patch: Partial<AbOptions>) => {
     if (!ab) return;
@@ -102,6 +116,58 @@ export function PowerPage() {
             disabled={!gpu}
             onChange={(v) => api.setGpuOption("autoReset", v).then(setGpu)}
           />
+        </LiquidGlass>
+
+        <LiquidGlass className="settings__card" radius={24}>
+          <h2 className="card__title">{t("watchTitle")}</h2>
+          <p className="card__body">{t("watchBody")}</p>
+          {battery?.watching ? (
+            <>
+              <div className="progress" role="progressbar" aria-valuenow={Math.round(battery.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+                <span style={{ width: `${battery.progress * 100}%` }} />
+              </div>
+              <p className="card__hint">{t("watchProgress", { pct: Math.round(battery.progress * 100) })}</p>
+              <button type="button" className="ghost-button" onClick={() => api.cancelWatch().then(setBattery)}>
+                {t("watchCancel")}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="ghost-button" disabled={!battery} onClick={startWatch}>
+              {t("watchStart")}
+            </button>
+          )}
+          {watchError && <p className="card__error">{t("watchOnAc")}</p>}
+          {battery?.summary && (
+            <>
+              <dl className="limits">
+                <div>
+                  <dt>{t("watchAvgPower")}</dt>
+                  <dd>{battery.summary.avgWatts == null ? "–" : t("wattValue", { value: battery.summary.avgWatts.toFixed(1) })}</dd>
+                </div>
+                <div>
+                  <dt>{t("watchAvgCpu")}</dt>
+                  <dd>{t("pctValue", { value: Math.round(battery.summary.avgCpu) })}</dd>
+                </div>
+                <div>
+                  <dt>{t("watchIdle")}</dt>
+                  <dd>{t("pctValue", { value: Math.round(battery.summary.idlePct) })}</dd>
+                </div>
+              </dl>
+            </>
+          )}
+          {battery && battery.targets.length > 0 ? (
+            <>
+              <h3 className="card__title">{t("watchTargets")}</h3>
+              <ul className="targets">
+                {battery.targets.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+              <Toggle label={t("ecoToggle")} on={battery.ecoEnabled} disabled={false} onChange={(v) => api.setEcoEnabled(v).then(setBattery)} />
+            </>
+          ) : (
+            battery?.summary && <p className="card__hint">{t("watchNoTargets")}</p>
+          )}
         </LiquidGlass>
 
         {ab?.installed && (

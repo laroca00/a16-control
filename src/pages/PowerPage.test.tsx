@@ -25,6 +25,18 @@ vi.mock("../api", async (orig) => {
       setPowerOption: vi.fn(() => Promise.resolve({ ...view, options: { autoGame: true, acdcSwitch: true } })),
       getAfterburner: vi.fn(() => Promise.resolve({ installed: true, options: { enabled: false, ocProfile: 1, stockProfile: 5 } })),
       setAfterburner: vi.fn((options) => Promise.resolve({ installed: true, options })),
+      getBattery: vi.fn(() =>
+        Promise.resolve({
+          watching: false,
+          progress: 0,
+          summary: { avgWatts: 12.5, avgCpu: 18, idlePct: 40, targets: ["chrome", "slack"], minutes: 10 },
+          ecoEnabled: true,
+          targets: ["chrome", "slack"],
+        }),
+      ),
+      startWatch: vi.fn(() => Promise.reject("unplug from power first")),
+      cancelWatch: vi.fn(),
+      setEcoEnabled: vi.fn(),
       getGpu: vi.fn(() => Promise.resolve({ state: "d3", igpuOnBattery: true, autoReset: false })),
       setGpuOption: vi.fn(() => Promise.resolve({ state: "d3", igpuOnBattery: true, autoReset: true })),
       getConfig: vi.fn(() => Promise.resolve({ lang: null })),
@@ -66,4 +78,17 @@ test("afterburner can be enabled and the overclock profile chosen", async () => 
   expect(api.setAfterburner).toHaveBeenCalledWith({ enabled: true, ocProfile: 1, stockProfile: 5 });
   await userEvent.selectOptions(screen.getByRole("combobox", { name: "Overclock profile" }), "3");
   expect(api.setAfterburner).toHaveBeenLastCalledWith({ enabled: true, ocProfile: 3, stockProfile: 5 });
+});
+
+test("summary lists targets", async () => {
+  renderPage();
+  expect(await screen.findByText("12.5 W")).toBeInTheDocument();
+  expect(screen.getByText("chrome")).toBeInTheDocument();
+  expect(screen.getByText("slack")).toBeInTheDocument();
+});
+
+test("watcher start reports why it cannot run on AC", async () => {
+  renderPage();
+  await userEvent.click(await screen.findByRole("button", { name: "Watch for 10 minutes" }));
+  expect(await screen.findByText(/Unplug the charger/)).toBeInTheDocument();
 });
