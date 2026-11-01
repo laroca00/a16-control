@@ -56,6 +56,17 @@ pub fn apply(wmi: &dyn GbWmi, mode: FanMode) -> Result<(), HwError> {
     }
 }
 
+/// Hands the fans back to the firmware unless they are already in auto. The
+/// fixed lock outlives our process, so this runs before quitting and
+/// uninstalling; when the state cannot be read, Auto is applied anyway
+/// because it is always safe.
+pub fn release(wmi: &dyn GbWmi) -> Result<(), HwError> {
+    match crate::telemetry::read(wmi) {
+        Ok(t) if t.fan_mode == FanMode::Auto => Ok(()),
+        _ => apply(wmi, FanMode::Auto),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,6 +102,30 @@ mod tests {
                 ("SetAutoFanStatus".into(), 1),
             ]
         );
+    }
+
+    #[test]
+    fn release_applies_auto_when_max() {
+        let w = FakeWmi::default();
+        w.put("GetFixedFanStatus", 1);
+        w.put("GetAutoFanStatus", 0);
+        release(&w).unwrap();
+        assert_eq!(w.calls().last().unwrap(), &("SetAutoFanStatus".to_string(), 1));
+    }
+
+    #[test]
+    fn release_applies_auto_when_state_unreadable() {
+        let w = FakeWmi::failing_on("getRpm1");
+        release(&w).unwrap();
+        assert_eq!(w.calls().last().unwrap(), &("SetAutoFanStatus".to_string(), 1));
+    }
+
+    #[test]
+    fn release_leaves_auto_alone() {
+        let w = FakeWmi::default();
+        w.put("GetAutoFanStatus", 1);
+        release(&w).unwrap();
+        assert!(w.calls().is_empty());
     }
 
     #[test]

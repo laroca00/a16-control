@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_positioner::{Position, WindowExt};
 
 use crate::commands::lang;
-use crate::fan::FanMode;
+use crate::fan::{self, FanMode};
 use crate::state::{self, AppState};
 use crate::telemetry::Telemetry;
 
@@ -117,10 +117,10 @@ pub fn show_main(app: &AppHandle) {
 }
 
 pub fn quit(app: &AppHandle) {
-    let st = app.state::<AppState>();
-    let t = st.telemetry().ok();
-    if let Err(e) = state::restore_before_exit(st.wmi.as_deref(), t.as_ref()) {
-        eprintln!("could not restore fans before exit: {e}");
+    if let Ok(wmi) = app.state::<AppState>().wmi() {
+        if let Err(e) = fan::release(wmi.as_ref()) {
+            eprintln!("could not restore fans before exit: {e}");
+        }
     }
     app.exit(0);
 }

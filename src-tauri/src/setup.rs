@@ -7,7 +7,8 @@ use std::process::Command;
 use serde::Serialize;
 
 use crate::elevation::{hidden, is_elevated};
-use crate::hw::com::class_methods;
+use crate::fan;
+use crate::hw::com::{class_methods, ComWmi};
 
 pub const TASK_NAME: &str = "GiENEMY";
 
@@ -213,6 +214,11 @@ pub fn install(exe: &Path) -> Result<(), String> {
 pub fn uninstall() -> Result<(), String> {
     if !task_registered() {
         return Ok(());
+    }
+    // Ending the task kills the running copy before it can release the fans,
+    // so release them here first.
+    if let Ok(wmi) = ComWmi::connect() {
+        let _ = fan::release(&wmi);
     }
     // Stops the running copy so the uninstaller can delete its files.
     let _ = run_ok("schtasks", &["/end", "/tn", TASK_NAME]);
