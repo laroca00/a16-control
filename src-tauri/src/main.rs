@@ -1,9 +1,23 @@
 #![windows_subsystem = "windows"]
 
+use gienemy_lib::elevation::{self, StartupAction};
+use gienemy_lib::{cli, setup};
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if gienemy_lib::cli::is_cli(&args) {
-        std::process::exit(gienemy_lib::cli::run(&args));
+    let elevated = elevation::is_elevated();
+    match elevation::startup_action(elevated, setup::task_exists(), cli::is_cli(&args)) {
+        StartupAction::Cli => std::process::exit(cli::run(&args, elevated)),
+        StartupAction::RelaunchViaTask => {
+            if elevation::launch_via_task().is_ok() {
+                return;
+            }
+            // The task exists but would not start; fall back to the setup screen.
+            gienemy_lib::run(true, false)
+        }
+        StartupAction::RunApp { needs_setup } => {
+            let tray_start = args.iter().any(|a| a == "--tray");
+            gienemy_lib::run(needs_setup, tray_start)
+        }
     }
-    gienemy_lib::run()
 }

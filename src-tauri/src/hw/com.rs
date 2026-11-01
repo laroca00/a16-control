@@ -107,34 +107,66 @@ fn call_err(method: &str, detail: impl Into<String>) -> HwError {
     HwError::Call { method: method.to_string(), detail: detail.into() }
 }
 
+/// Must run on a thread that has not initialised COM differently.
+unsafe fn connect_services() -> Result<IWbemServices, HwError> {
+    CoInitializeEx(None, COINIT_MULTITHREADED).ok().map_err(unavailable)?;
+    let locator: IWbemLocator =
+        CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER).map_err(unavailable)?;
+    let svc = locator
+        .ConnectServer(
+            &BSTR::from("root\\WMI"),
+            &BSTR::new(),
+            &BSTR::new(),
+            &BSTR::new(),
+            0,
+            &BSTR::new(),
+            None,
+        )
+        .map_err(unavailable)?;
+    CoSetProxyBlanket(
+        &svc,
+        RPC_C_AUTHN_WINNT,
+        RPC_C_AUTHZ_NONE,
+        PCWSTR::null(),
+        RPC_C_AUTHN_LEVEL_CALL,
+        RPC_C_IMP_LEVEL_IMPERSONATE,
+        None,
+        EOAC_NONE,
+    )
+    .map_err(unavailable)?;
+    Ok(svc)
+}
+
+/// Method names a class declares. Class definitions are readable without
+/// elevation, so setup status works before install.
+pub fn class_methods(class: &str) -> Result<Vec<String>, HwError> {
+    let class = class.to_string();
+    thread::spawn(move || unsafe {
+        let svc = connect_services()?;
+        let obj = class_object(&svc, &class)?;
+        obj.BeginMethodEnumeration(0).map_err(unavailable)?;
+        let mut names = Vec::new();
+        loop {
+            let mut name = BSTR::new();
+            // WBEM_S_NO_MORE_DATA is a success code, so the end shows up as an empty name.
+            if obj.NextMethod(0, &mut name, std::ptr::null_mut(), std::ptr::null_mut()).is_err()
+                || name.is_empty()
+            {
+                break;
+            }
+            names.push(name.to_string());
+        }
+        let _ = obj.EndMethodEnumeration();
+        Ok(names)
+    })
+    .join()
+    .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
+}
+
 impl Session {
     fn open() -> Result<Session, HwError> {
         unsafe {
-            CoInitializeEx(None, COINIT_MULTITHREADED).ok().map_err(unavailable)?;
-            let locator: IWbemLocator =
-                CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER).map_err(unavailable)?;
-            let svc = locator
-                .ConnectServer(
-                    &BSTR::from("root\\WMI"),
-                    &BSTR::new(),
-                    &BSTR::new(),
-                    &BSTR::new(),
-                    0,
-                    &BSTR::new(),
-                    None,
-                )
-                .map_err(unavailable)?;
-            CoSetProxyBlanket(
-                &svc,
-                RPC_C_AUTHN_WINNT,
-                RPC_C_AUTHZ_NONE,
-                PCWSTR::null(),
-                RPC_C_AUTHN_LEVEL_CALL,
-                RPC_C_IMP_LEVEL_IMPERSONATE,
-                None,
-                EOAC_NONE,
-            )
-            .map_err(unavailable)?;
+            let svc = connect_services()?;
             let set_class = class_object(&svc, SET_CLASS)?;
             let get_class = class_object(&svc, GET_CLASS)?;
             let set_path = first_instance_path(&svc, SET_CLASS)?;

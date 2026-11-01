@@ -1,0 +1,43 @@
+// GiENEMY: declares the BIOS's ACPI-WMI setter block so Windows exposes it
+// as root\WMI:GB_WMIACPI_Set. Compiled only when the class is missing one of
+// the fan methods GiENEMY needs.
+#pragma namespace("\\\\.\\root\\wmi")
+
+[WMI, Dynamic, Provider("WmiProv"), Locale("MS\\0x409"),
+ Description("Gigabyte ACPI-WMI setters (GiENEMY)"),
+ guid("{ABBC0F75-8EA1-11d1-00A0-C90629100000}")]
+class GB_WMIACPI_Set
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+
+    [WmiMethodId(71), Implemented, Description("Fan 2 fixed duty")]
+    void SetGPUFanDuty([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(81), Implemented, Description("NVIDIA Dynamic Boost bias")]
+    void SetNvPowerConfig([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(102), Implemented, Description("Fan step index")]
+    void SetCurrentFanStep([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(103), Implemented, Description("Step fan mode on/off")]
+    void SetStepFanStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(106), Implemented, Description("Fixed fan lock on/off")]
+    void SetFixedFanStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(107), Implemented, Description("Fan 1 fixed duty")]
+    void SetFixedFanSpeed([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(113), Implemented, Description("Automatic fan governor on/off")]
+    void SetAutoFanStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(241), Implemented, Description("APU sustained power limit, mW")]
+    void SetApuParameter3([in, WmiDataId(1)] uint32 Data);
+
+    [WmiMethodId(242), Implemented, Description("APU slow power limit, mW")]
+    void SetApuParameter2([in, WmiDataId(1)] uint32 Data);
+
+    [WmiMethodId(243), Implemented, Description("APU fast power limit, mW")]
+    void SetApuParameter1([in, WmiDataId(1)] uint32 Data);
+};

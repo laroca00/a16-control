@@ -1,0 +1,37 @@
+// GiENEMY: declares the BIOS's ACPI-WMI getter block as root\WMI:GB_WMIACPI_Get.
+// Compiled only when the class does not exist at all, so a fuller definition
+// installed by Gigabyte's own software is never replaced.
+#pragma namespace("\\\\.\\root\\wmi")
+
+[WMI, Dynamic, Provider("WmiProv"), Locale("MS\\0x409"),
+ Description("Gigabyte ACPI-WMI getters (GiENEMY)"),
+ guid("{ABBC0F6F-8EA1-11d1-00A0-C90629100000}")]
+class GB_WMIACPI_Get
+{
+    [key, read] string InstanceName;
+    [read] boolean Active;
+
+    [WmiMethodId(70), Implemented, Description("Fan 1 duty")]
+    void GetCPUFanDuty([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(71), Implemented, Description("Fan 2 duty")]
+    void GetGPUFanDuty([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(106), Implemented, Description("Fixed fan lock")]
+    void GetFixedFanStatus([out, WmiDataId(1)] uint16 Data);
+
+    [WmiMethodId(113), Implemented, Description("Automatic fan governor")]
+    void GetAutoFanStatus([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(225), Implemented, Description("CPU temperature, C")]
+    void getCpuTemp([out, WmiDataId(1)] uint16 Data);
+
+    [WmiMethodId(226), Implemented, Description("GPU temperature, C")]
+    void getGpuTemp1([out, WmiDataId(1)] uint16 Data);
+
+    [WmiMethodId(228), Implemented, Description("Fan 1 speed, RPM")]
+    void getRpm1([out, WmiDataId(1)] uint16 Data);
+
+    [WmiMethodId(229), Implemented, Description("Fan 2 speed, RPM")]
+    void getRpm2([out, WmiDataId(1)] uint16 Data);
+};
