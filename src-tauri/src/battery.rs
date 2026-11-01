@@ -84,6 +84,20 @@ pub fn eco_plan(targets: &[(u32, String)], foreground: Option<u32>, throttled: &
     plan
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BatteryView {
+    pub watching: bool,
+    pub progress: f32,
+    pub summary: Option<Summary>,
+    pub eco_enabled: bool,
+    pub targets: Vec<String>,
+}
+
+pub fn view(progress: Option<f32>, summary: Option<Summary>, eco_enabled: bool, targets: &[String]) -> BatteryView {
+    BatteryView { watching: progress.is_some(), progress: progress.unwrap_or(0.0), summary, eco_enabled, targets: targets.to_vec() }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum WatchEvent {
     Progress(f32),
@@ -171,6 +185,16 @@ mod tests {
         assert_eq!(plan.throttle, vec![12]);
         // 99 exited; nothing to release for a gone process.
         assert!(plan.release.is_empty());
+    }
+
+    #[test]
+    fn battery_view_reports_progress() {
+        let v = view(Some(0.25), None, true, &["chrome".to_string()]);
+        assert!(v.watching);
+        assert_eq!(v.progress, 0.25);
+        assert!(v.eco_enabled);
+        assert_eq!(v.targets, vec!["chrome".to_string()]);
+        assert!(!view(None, None, false, &[]).watching);
     }
 
     #[test]

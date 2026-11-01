@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use windows::core::{s, w, HSTRING, PCWSTR};
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{CloseHandle, FILETIME, HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
     ChangeDisplaySettingsExW, EnumDisplaySettingsW, GetMonitorInfoW, MonitorFromWindow, CDS_TEST,
     CDS_UPDATEREGISTRY, DEVMODEW, DISP_CHANGE_SUCCESSFUL, DM_DISPLAYFREQUENCY, ENUM_CURRENT_SETTINGS,
@@ -16,12 +16,22 @@ use windows::Win32::System::Performance::{
     PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
     PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
 };
-use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
+use windows::Win32::System::Power::{
+    CallNtPowerInformation, GetSystemPowerStatus, SystemBatteryState, SYSTEM_BATTERY_STATE, SYSTEM_POWER_STATUS,
+};
+use windows::Win32::System::Threading::{
+    GetProcessTimes, GetSystemTimes, OpenProcess, ProcessPowerThrottling, SetProcessInformation,
+    PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_INFORMATION,
+};
 use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetClassNameW, GetDesktopWindow, GetForegroundWindow, GetShellWindow, GetWindowLongW, GetWindowRect, IsZoomed,
-    GWL_STYLE, WS_CAPTION,
+    GetWindowThreadProcessId, GWL_STYLE, WS_CAPTION,
 };
 
 use crate::elevation::tool;
@@ -257,6 +267,92 @@ pub fn tune_battery_plan() {
         let _ = tool("powercfg.exe").args(["/setdcvalueindex", "SCHEME_CURRENT", sub, setting, value]).output();
     }
     let _ = tool("powercfg.exe").args(["/setactive", "SCHEME_CURRENT"]).output();
+}
+
+/// Battery draw in watts while discharging; None on AC or if unknown.
+pub fn battery_watts() -> Option<f32> {
+    let mut s = SYSTEM_BATTERY_STATE::default();
+    let ok = unsafe {
+        CallNtPowerInformation(
+            SystemBatteryState,
+            None,
+            0,
+            Some(&mut s as *mut _ as *mut _),
+            std::mem::size_of::<SYSTEM_BATTERY_STATE>() as u32,
+        )
+    };
+    // Rate is a signed milliwatt value packed in an unsigned field; negative while discharging.
+    (ok.is_ok() && s.Discharging).then(|| (s.Rate as i32).unsigned_abs() as f32 / 1000.0)
+}
+
+/// (idle, kernel, user) in 100 ns units; kernel includes idle.
+pub fn system_times() -> Option<(u64, u64, u64)> {
+    let (mut i, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default());
+    unsafe { GetSystemTimes(Some(&mut i), Some(&mut k), Some(&mut u)) }.ok()?;
+    let v = |f: FILETIME| ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64;
+    Some((v(i), v(k), v(u)))
+}
+
+pub fn cpu_percent(prev: (u64, u64, u64), cur: (u64, u64, u64)) -> f32 {
+    let idle = cur.0.saturating_sub(prev.0);
+    let total = cur.1.saturating_sub(prev.1) + cur.2.saturating_sub(prev.2);
+    if total == 0 {
+        return 0.0;
+    }
+    (100.0 * total.saturating_sub(idle) as f32 / total as f32).clamp(0.0, 100.0)
+}
+
+/// pid → (image name without .exe, CPU time in 100 ns units).
+pub fn process_cpu_snapshot() -> std::collections::HashMap<u32, (String, u64)> {
+    let mut out = std::collections::HashMap::new();
+    unsafe {
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return out };
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut more = Process32FirstW(snap, &mut e).is_ok();
+        while more {
+            let len = e.szExeFile.iter().position(|c| *c == 0).unwrap_or(e.szExeFile.len());
+            let name = String::from_utf16_lossy(&e.szExeFile[..len]);
+            let name = name.strip_suffix(".exe").unwrap_or(&name).to_string();
+            if let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, e.th32ProcessID) {
+                let (mut c, mut x, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
+                if GetProcessTimes(h, &mut c, &mut x, &mut k, &mut u).is_ok() {
+                    let v = |f: FILETIME| ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64;
+                    out.insert(e.th32ProcessID, (name, v(k) + v(u)));
+                }
+                let _ = CloseHandle(h);
+            }
+            more = Process32NextW(snap, &mut e).is_ok();
+        }
+        let _ = CloseHandle(snap);
+    }
+    out
+}
+
+pub fn foreground_pid() -> Option<u32> {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)) };
+    (pid != 0).then_some(pid)
+}
+
+/// Turns EcoQoS (execution-speed throttling) on or off for one process.
+pub fn set_eco(pid: u32, on: bool) -> bool {
+    unsafe {
+        let Ok(h) = OpenProcess(PROCESS_SET_INFORMATION, false, pid) else { return false };
+        let state = PROCESS_POWER_THROTTLING_STATE {
+            Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+            ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+            StateMask: if on { PROCESS_POWER_THROTTLING_EXECUTION_SPEED } else { 0 },
+        };
+        let ok = SetProcessInformation(
+            h,
+            ProcessPowerThrottling,
+            &state as *const _ as *const _,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        )
+        .is_ok();
+        let _ = CloseHandle(h);
+        ok
+    }
 }
 
 pub fn set_brightness(pct: u32) -> bool {

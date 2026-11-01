@@ -222,6 +222,7 @@ pub fn show_main(app: &AppHandle) {
 }
 
 pub fn quit(app: &AppHandle) {
+    crate::battery_ctl::release_all(app);
     if let Ok(wmi) = app.state::<AppState>().wmi() {
         if let Err(e) = fan::release(wmi.as_ref()) {
             eprintln!("could not restore fans before exit: {e}");

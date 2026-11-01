@@ -1,5 +1,6 @@
 pub mod afterburner;
 pub mod battery;
+pub mod battery_ctl;
 pub mod cli;
 pub mod commands;
 pub mod config;
@@ -49,6 +50,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
         .manage(keyboard)
         .manage(display::DisplayState::default())
         .manage(gpu::GpuCtl::new())
+        .manage(battery_ctl::BatteryCtl::default())
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -172,6 +174,7 @@ fn spawn_background(app: AppHandle) {
         }
         power_tick(&app);
         display::watch(&app);
+        battery_ctl::tick(&app);
         if last_gpu.elapsed() >= GPU_CHECK_EVERY {
             last_gpu = std::time::Instant::now();
             gpu_tick(&app);

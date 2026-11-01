@@ -5,6 +5,8 @@ use crate::config::{self, Config};
 use crate::elevation::{self, system_tool, tool};
 use crate::display::{self, DisplayView};
 use crate::afterburner::{self, AbOptions};
+use crate::battery::BatteryView;
+use crate::battery_ctl;
 use crate::fan::FanMode;
 use crate::gpu::{GpuCtl, GpuView};
 use crate::keyboard::KeyboardView;
@@ -219,6 +221,35 @@ pub fn set_afterburner(state: State<'_, AppState>, options: AbOptions) -> Result
 }
 
 #[tauri::command]
+pub fn get_battery(app: AppHandle) -> BatteryView {
+    battery_ctl::view(&app)
+}
+
+#[tauri::command]
+pub fn start_watch(app: AppHandle) -> Result<BatteryView, String> {
+    battery_ctl::start(&app)
+}
+
+#[tauri::command]
+pub fn cancel_watch(app: AppHandle) -> BatteryView {
+    battery_ctl::cancel(&app)
+}
+
+#[tauri::command]
+pub fn set_eco_enabled(app: AppHandle, on: bool) -> Result<BatteryView, String> {
+    {
+        let st = app.state::<AppState>();
+        let mut cfg = st.config.lock().unwrap();
+        cfg.eco_enabled = on;
+        config::save(&cfg)?;
+    }
+    if !on {
+        battery_ctl::release_all(&app);
+    }
+    Ok(battery_ctl::view(&app))
+}
+
+#[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Config {
     state.config.lock().unwrap().clone()
 }
@@ -271,6 +302,10 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         set_gpu_option,
         get_afterburner,
         set_afterburner,
+        get_battery,
+        start_watch,
+        cancel_watch,
+        set_eco_enabled,
         open_main,
         quit_app
     ]

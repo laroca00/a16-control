@@ -19,6 +19,8 @@ pub struct Config {
     pub igpu_on_battery: bool,
     pub gpu_auto_reset: bool,
     pub afterburner: AbOptions,
+    pub eco_enabled: bool,
+    pub eco_targets: Vec<String>,
 }
 
 impl Default for Config {
@@ -34,6 +36,8 @@ impl Default for Config {
             igpu_on_battery: true,
             gpu_auto_reset: false,
             afterburner: AbOptions { enabled: false, oc_profile: 1, stock_profile: 5 },
+            eco_enabled: true,
+            eco_targets: Vec::new(),
         }
     }
 }
