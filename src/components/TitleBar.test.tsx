@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
 import { TitleBar } from "./TitleBar";
 
-const win = { minimize: vi.fn(), toggleMaximize: vi.fn(), hide: vi.fn() };
+const win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => win }));
 
 function renderBar() {
@@ -21,7 +21,7 @@ test("window buttons drive the window", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Close to tray" }));
   expect(win.minimize).toHaveBeenCalled();
   expect(win.toggleMaximize).toHaveBeenCalled();
-  expect(win.hide).toHaveBeenCalled();
+  expect(win.close).toHaveBeenCalled();
 });
 
 test("the bar is a drag region", () => {

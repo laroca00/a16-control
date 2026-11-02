@@ -8,7 +8,6 @@ import { KeyboardPage } from "../pages/KeyboardPage";
 import { DisplayPage } from "../pages/DisplayPage";
 import { Overview } from "../pages/Overview";
 import { SettingsPage } from "../pages/SettingsPage";
-import { ShaderGradient } from "../ui/ShaderGradient";
 import { Sidebar, type Page } from "./Sidebar";
 import "./main.css";
 
@@ -18,7 +17,7 @@ export function MainWindow() {
 
   return (
     <div className="main">
-      <ShaderGradient className="main__backdrop" colors={["#0b1846", "#2f55c8", "#1c9c92"]} brightness={0.85} />
+      <div className="main__backdrop backdrop" />
       <TitleBar />
       <Sidebar page={page} onSelect={setPage} />
       <main className="main__content">

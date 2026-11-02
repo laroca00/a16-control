@@ -54,11 +54,6 @@ pub fn run(needs_setup: bool, tray_start: bool) {
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
-            // Closing the main window only hides it; the app lives in the tray.
-            ("main", WindowEvent::CloseRequested { api, .. }) => {
-                api.prevent_close();
-                let _ = window.hide();
-            }
             _ => {}
         })
         .setup(move |app| {
@@ -71,8 +66,15 @@ pub fn run(needs_setup: bool, tray_start: bool) {
             keyboard_ctl::register_shortcuts(app.handle());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running GiENEMY");
+        .build(tauri::generate_context!())
+        .expect("error while building GiENEMY")
+        .run(|_, event| {
+            // Windows close for good to free their WebView2 processes; the
+            // app lives on in the tray until Exit asks with a code.
+            if let tauri::RunEvent::ExitRequested { api, code: None, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }
 
 fn any_window_visible(app: &AppHandle) -> bool {
@@ -204,6 +206,7 @@ fn spawn_background(app: AppHandle) {
         }
         power_tick(&app);
         state::fan_tick(&app.state::<AppState>());
+        tray::reap_panel(&app);
         display::watch(&app);
         battery_ctl::tick(&app);
         if last_gpu.elapsed() >= GPU_CHECK_EVERY {

@@ -193,8 +193,39 @@ fn place_panel(app: &AppHandle, w: &tauri::WebviewWindow, anchor: (i32, i32)) {
     let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
 }
 
-fn toggle_panel(app: &AppHandle, anchor: (i32, i32)) {
+/// A hidden panel is closed after this long: reopening it costs a fresh
+/// webview, keeping it costs a renderer process.
+const PANEL_KEEP: Duration = Duration::from_secs(20);
+
+/// The main window and the panel are built when first shown and closed once
+/// hidden, so the tray app holds no WebView2 processes while nobody looks.
+fn window(app: &AppHandle, label: &str) -> Option<tauri::WebviewWindow> {
+    if let Some(w) = app.get_webview_window(label) {
+        return Some(w);
+    }
+    let config = app.config().app.windows.iter().find(|w| w.label == label)?;
+    match tauri::WebviewWindowBuilder::from_config(app, config).and_then(|b| b.build()) {
+        Ok(w) => Some(w),
+        Err(e) => {
+            eprintln!("could not open the {label} window: {e}");
+            None
+        }
+    }
+}
+
+pub fn reap_panel(app: &AppHandle) {
     let Some(w) = app.get_webview_window("panel") else { return };
+    if w.is_visible().unwrap_or(true) {
+        return;
+    }
+    let hidden_at = *app.state::<TrayItems>().panel_hidden_at.lock().unwrap();
+    if hidden_at.map_or(true, |t| t.elapsed() >= PANEL_KEEP) {
+        let _ = w.close();
+    }
+}
+
+fn toggle_panel(app: &AppHandle, anchor: (i32, i32)) {
+    let Some(w) = window(app, "panel") else { return };
     let just_hidden = app
         .state::<TrayItems>()
         .panel_hidden_at
@@ -214,7 +245,7 @@ pub fn show_main(app: &AppHandle) {
     if let Some(p) = app.get_webview_window("panel") {
         let _ = p.hide();
     }
-    if let Some(w) = app.get_webview_window("main") {
+    if let Some(w) = window(app, "main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();

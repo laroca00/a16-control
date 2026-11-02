@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "GiENEMY",
         "width": 1040,
         "height": 680,
@@ -26,6 +27,7 @@
       },
       {
         "label": "panel",
+        "create": false,
         "title": "GiENEMY",
         "width": 360,
         "height": 440,

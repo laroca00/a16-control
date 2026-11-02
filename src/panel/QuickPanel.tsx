@@ -7,7 +7,6 @@ import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "../componen
 import { useFanControl } from "../hooks/useFanControl";
 import { useT } from "../i18n";
 import { LiquidGlass } from "../ui/LiquidGlass";
-import { ShaderGradient } from "../ui/ShaderGradient";
 import "./panel.css";
 
 export function QuickPanel() {
@@ -24,7 +23,7 @@ export function QuickPanel() {
 
   return (
     <div className={`panel${crowded ? " panel--crowded" : ""}${needsSetup ? " panel--setup" : ""}`}>
-      <ShaderGradient className="panel__backdrop" colors={["#0b1846", "#2f55c8", "#1c9c92"]} brightness={0.85} />
+      <div className="panel__backdrop backdrop" />
       <LiquidGlass className="panel__card" radius={22}>
         {needsSetup ? (
           <SetupNotice />

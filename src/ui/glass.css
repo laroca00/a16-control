@@ -9,8 +9,6 @@
     inset 0 0 0 1px rgb(255 255 255 / 0.1),
     0 25px 50px rgb(0 0 0 / 0.25)
   );
-  /* Used until the displacement map exists; the component swaps in the SVG filter. */
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
 }
 
 .glass--pill {
@@ -20,14 +18,6 @@
 .glass--circle {
   aspect-ratio: 1;
   border-radius: 50%;
-}
-
-.glass__defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
 }
 
 .glass--scroll {
@@ -96,4 +86,13 @@
   100% {
     --fade-bottom: 0px;
   }
+}
+
+/* The window backdrop: the old shader's three bands, brightness 0.85, as
+   still gradients the compositor paints once. */
+.backdrop {
+  background:
+    radial-gradient(120% 90% at 85% 100%, rgb(24 133 124 / 0.9), transparent 60%),
+    radial-gradient(90% 80% at 20% 30%, rgb(40 72 170 / 0.85), transparent 65%),
+    linear-gradient(160deg, #0a1440 0%, #1a2f78 55%, #0f4f63 100%);
 }

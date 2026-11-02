@@ -34,7 +34,7 @@ export function TitleBar() {
           type="button"
           className="titlebar__button titlebar__button--close"
           aria-label={t("winClose")}
-          onClick={() => win.hide()}
+          onClick={() => win.close()}
         >
           <Glyph d={ICONS.close} />
         </button>
