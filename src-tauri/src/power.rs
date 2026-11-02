@@ -114,14 +114,11 @@ pub fn profile(id: ProfileId) -> Profile {
     }
 }
 
-/// Fan mode to write for a decision. A Max Fan toggled by hand stays until the
-/// user picks a power mode; automatic decisions (plug, battery level, games)
-/// do not override it.
-pub fn effective_fan(profile_fan: FanMode, manual: Option<FanMode>, reason: Reason) -> FanMode {
-    match reason {
-        Reason::UserBattery | Reason::UserPerformance => profile_fan,
-        _ => manual.unwrap_or(profile_fan),
-    }
+/// Fan mode to write for a decision. A fan mode picked by hand stays until the
+/// user picks a power mode, which clears it; automatic decisions (plug,
+/// battery level, games) and the restore at start do not override it.
+pub fn effective_fan(profile_fan: FanMode, manual: Option<FanMode>) -> FanMode {
+    manual.unwrap_or(profile_fan)
 }
 
 /// Writes the firmware half of a profile. Every lever is attempted even if an
@@ -490,10 +487,9 @@ mod tests {
 
     #[test]
     fn manual_fan_choice_survives_automatic_decisions() {
-        assert_eq!(effective_fan(FanMode::Auto, Some(FanMode::Max), Reason::AutoAc), FanMode::Max);
-        assert_eq!(effective_fan(FanMode::Max, Some(FanMode::Auto), Reason::AutoGame), FanMode::Auto);
-        assert_eq!(effective_fan(FanMode::Max, Some(FanMode::Auto), Reason::UserPerformance), FanMode::Max);
-        assert_eq!(effective_fan(FanMode::Auto, None, Reason::AutoDc), FanMode::Auto);
+        assert_eq!(effective_fan(FanMode::Auto, Some(FanMode::Max)), FanMode::Max);
+        assert_eq!(effective_fan(FanMode::Max, Some(FanMode::Quiet)), FanMode::Quiet);
+        assert_eq!(effective_fan(FanMode::Auto, None), FanMode::Auto);
     }
 
     #[test]

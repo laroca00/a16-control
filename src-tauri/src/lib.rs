@@ -111,7 +111,7 @@ pub fn power_tick(app: &AppHandle) {
     persist_mode(&st, mode);
     let Some(decision) = decision else { return };
     let manual = *st.manual_fan.lock().unwrap();
-    let fan = power::effective_fan(power::profile(decision.profile).fan, manual, decision.reason);
+    let fan = power::effective_fan(power::profile(decision.profile).fan, manual);
     let wmi = st.wmi();
     let result = power::apply_decision(wmi.as_deref().map_err(Clone::clone), &decision, fan);
     {
