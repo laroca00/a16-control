@@ -114,6 +114,13 @@ pub fn power_tick(app: &AppHandle) {
     let fan = power::effective_fan(power::profile(decision.profile).fan, manual, decision.reason);
     let wmi = st.wmi();
     let result = power::apply_decision(wmi.as_deref().map_err(Clone::clone), &decision, fan);
+    {
+        let mut gov = st.fan_gov.lock().unwrap();
+        gov.reset(fan);
+        if result.is_err() {
+            gov.failed();
+        }
+    }
     let (ab, igpu) = {
         let cfg = st.config.lock().unwrap();
         (cfg.afterburner, cfg.igpu_on_battery)
@@ -196,6 +203,7 @@ fn spawn_background(app: AppHandle) {
             tray::show_main(&app);
         }
         power_tick(&app);
+        state::fan_tick(&app.state::<AppState>());
         display::watch(&app);
         battery_ctl::tick(&app);
         if last_gpu.elapsed() >= GPU_CHECK_EVERY {

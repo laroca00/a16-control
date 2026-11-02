@@ -44,6 +44,12 @@ export const en = {
   fan2: "Fan 2",
   statusMax: "Fans are locked at full speed. Turn Max Fan off when you finish playing.",
   statusAuto: "The firmware is setting fan speed from temperature.",
+  statusQuiet: "Fans are held near 2500 RPM. Above 80°C the firmware takes over until it cools.",
+
+  fanModeLabel: "Fan mode",
+  fanModeAuto: "Auto",
+  fanModeQuiet: "Quiet",
+  fanModeMax: "Max",
 
   fanHistory: "Last three minutes",
   fanSpeedChart: "Fan speed",

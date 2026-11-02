@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type FanMode = "max" | "auto";
+/** quiet holds the fans near 2400-2700 RPM and hands them to the firmware when hot. */
+export type FanMode = "max" | "auto" | "quiet";
 
 export type Telemetry = {
   rpm1: number;

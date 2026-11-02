@@ -69,11 +69,10 @@ fn execute(args: &[String]) -> Result<String, String> {
     match (args.get(1).map(String::as_str), args.get(2).map(String::as_str)) {
         (Some("--probe"), _) => probe(&wmi),
         (Some("--fan"), Some(mode)) => {
-            let mode = match mode {
-                "max" => FanMode::Max,
-                "auto" => FanMode::Auto,
-                other => return Err(format!("unknown fan mode {other:?}, use max or auto")),
-            };
+            let mode: FanMode = serde_json::from_value(mode.into())
+                .map_err(|_| format!("unknown fan mode {mode:?}, use auto, quiet or max"))?;
+            // From here quiet is a bare lock: nothing hands it to the
+            // firmware when the chip gets hot, as the app does.
             fan::apply(&wmi, mode).map_err(|e| e.to_string())?;
             probe(&wmi)
         }
@@ -88,7 +87,7 @@ fn execute(args: &[String]) -> Result<String, String> {
             power::apply_decision(Ok(&wmi), &decision, power::profile(profile).fan)?;
             probe(&wmi)
         }
-        _ => Err("usage: GiENEMY.exe --probe | --fan max|auto | --power battery|balanced|performance".into()),
+        _ => Err("usage: GiENEMY.exe --probe | --fan auto|quiet|max | --power battery|balanced|performance".into()),
     }
 }
 

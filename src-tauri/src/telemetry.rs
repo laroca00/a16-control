@@ -27,7 +27,17 @@ pub fn read(wmi: &dyn GbWmi) -> Result<Telemetry, HwError> {
         gpu_temp: wmi.get("getGpuTemp1")?,
         cpu_duty: wmi.get("GetCPUFanDuty")?,
         gpu_duty: wmi.get("GetGPUFanDuty")?,
-        fan_mode: if fixed == 1 && auto == 0 { FanMode::Max } else { FanMode::Auto },
+        fan_mode: if fixed == 1 && auto == 0 {
+            // Step mode is what makes the lock run flat out. Not in our own
+            // getter MOF; a missing reading counts as Max, the only lock
+            // older builds wrote.
+            match wmi.get("GetStepFanStatus") {
+                Ok(0) => FanMode::Quiet,
+                _ => FanMode::Max,
+            }
+        } else {
+            FanMode::Auto
+        },
     })
 }
 
@@ -42,7 +52,7 @@ mod tests {
         for (m, v) in [
             ("getRpm1", 5820), ("getRpm2", 6040), ("getCpuTemp", 71), ("getGpuTemp1", 64),
             ("GetCPUFanDuty", 100), ("GetGPUFanDuty", 100),
-            ("GetFixedFanStatus", 1), ("GetAutoFanStatus", 0),
+            ("GetFixedFanStatus", 1), ("GetAutoFanStatus", 0), ("GetStepFanStatus", 1),
         ] {
             w.put(m, v);
         }
@@ -67,6 +77,13 @@ mod tests {
         w.put("GetFixedFanStatus", 0);
         w.put("GetAutoFanStatus", 1);
         assert_eq!(read(&w).unwrap().fan_mode, FanMode::Auto);
+    }
+
+    #[test]
+    fn lock_without_step_mode_is_quiet() {
+        let w = seeded();
+        w.put("GetStepFanStatus", 0);
+        assert_eq!(read(&w).unwrap().fan_mode, FanMode::Quiet);
     }
 
     #[test]

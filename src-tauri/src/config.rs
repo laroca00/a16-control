@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::afterburner::AbOptions;
+use crate::fan::FanMode;
 use crate::keyboard::KeyboardSettings;
 use crate::power::{Options, UiMode};
 
@@ -23,6 +24,8 @@ pub struct Config {
     pub afterburner: AbOptions,
     pub eco_enabled: bool,
     pub eco_targets: Vec<String>,
+    /// Fan mode picked by hand, restored at start; cleared by a power mode choice.
+    pub fan_mode: Option<FanMode>,
 }
 
 impl Default for Config {
@@ -41,6 +44,7 @@ impl Default for Config {
             afterburner: AbOptions { enabled: false, oc_profile: 1, stock_profile: 5 },
             eco_enabled: true,
             eco_targets: Vec::new(),
+            fan_mode: None,
         }
     }
 }

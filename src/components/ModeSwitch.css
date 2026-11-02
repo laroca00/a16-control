@@ -54,6 +54,18 @@
   background: var(--bole);
 }
 
+.mode-switch__item--fan-quiet.mode-switch__item--on {
+  background: var(--turquoise);
+}
+
+.mode-switch__item--fan-auto.mode-switch__item--on {
+  background: var(--cobalt);
+}
+
+.mode-switch__item--fan-max.mode-switch__item--on {
+  background: var(--bole);
+}
+
 .mode-switch__reason {
   margin: 0;
   font-size: 0.8125rem;

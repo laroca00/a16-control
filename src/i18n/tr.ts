@@ -46,6 +46,12 @@ export const tr: Record<keyof typeof en, string> = {
   fan2: "Fan 2",
   statusMax: "Fanlar tam devirde kilitli. Oyun bitince Max Fan'ı kapat.",
   statusAuto: "Fan hızını sıcaklığa göre firmware ayarlıyor.",
+  statusQuiet: "Fanlar 2500 RPM civarında tutuluyor. 80°C'yi geçince soğuyana kadar firmware devralır.",
+
+  fanModeLabel: "Fan modu",
+  fanModeAuto: "Auto",
+  fanModeQuiet: "Sessiz",
+  fanModeMax: "Max",
 
   fanHistory: "Son üç dakika",
   fanSpeedChart: "Fan hızı",

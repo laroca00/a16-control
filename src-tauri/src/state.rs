@@ -26,6 +26,7 @@ pub struct AppState {
     pub power: Mutex<PowerState>,
     /// Fan mode the user picked by hand; automatic power decisions keep it.
     pub manual_fan: Mutex<Option<FanMode>>,
+    pub fan_gov: Mutex<fan::Governor>,
 }
 
 pub struct PowerState {
@@ -49,7 +50,8 @@ impl AppState {
             last_attempt: Mutex::new(None),
             retry_every,
             fan_lock: Mutex::new(()),
-            manual_fan: Mutex::new(None),
+            manual_fan: Mutex::new(config.fan_mode),
+            fan_gov: Mutex::new(fan::Governor::default()),
             power: Mutex::new(PowerState { controller: Controller::new(config.power_mode), last: None, error: None, failed_at: None }),
             config: Mutex::new(config),
         }
@@ -84,14 +86,28 @@ impl AppState {
 
     pub fn telemetry(&self) -> Result<Telemetry, String> {
         let wmi = self.wmi()?;
-        telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())
+        let mut t = telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())?;
+        // Quiet handed to the firmware while hot is still the mode the user picked.
+        if t.fan_mode == FanMode::Auto && self.fan_gov.lock().unwrap().active() {
+            t.fan_mode = FanMode::Quiet;
+        }
+        Ok(t)
+    }
+
+    fn remember_fan(&self, mode: Option<FanMode>) {
+        *self.manual_fan.lock().unwrap() = mode;
+        let mut cfg = self.config.lock().unwrap();
+        if cfg.fan_mode != mode {
+            cfg.fan_mode = mode;
+            let _ = crate::config::save(&cfg);
+        }
     }
 }
 
 impl AppState {
     /// An explicit power mode choice; it also ends any manual fan override.
     pub fn choose_mode(&self, mode: power::UiMode) {
-        *self.manual_fan.lock().unwrap() = None;
+        self.remember_fan(None);
         let mut p = self.power.lock().unwrap();
         p.failed_at = None;
         p.controller.set_mode(mode);
@@ -106,10 +122,49 @@ impl AppState {
 
 pub fn set_fan(state: &AppState, mode: FanMode) -> Result<Telemetry, String> {
     let wmi = state.wmi()?;
+    {
+        let _guard = state.fan_lock.lock().unwrap();
+        state.remember_fan(Some(mode));
+        let result = fan::apply(wmi.as_ref(), mode);
+        let mut gov = state.fan_gov.lock().unwrap();
+        gov.reset(mode);
+        if result.is_err() {
+            gov.failed();
+        }
+        result.map_err(|e| e.to_string())?;
+    }
+    state.telemetry()
+}
+
+/// One governor step: re-reads the temperature and moves Quiet between its
+/// lock and the firmware when it has to. Runs on every background tick.
+pub fn fan_tick(state: &AppState) {
+    if !state.fan_gov.lock().unwrap().active() {
+        return;
+    }
+    let Ok(wmi) = state.wmi() else { return };
     let _guard = state.fan_lock.lock().unwrap();
-    *state.manual_fan.lock().unwrap() = Some(mode);
-    fan::apply(wmi.as_ref(), mode).map_err(|e| e.to_string())?;
-    telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())
+    let mut gov = state.fan_gov.lock().unwrap();
+    match fan::read_temp(wmi.as_ref()) {
+        Ok(temp) => {
+            if let Some(mode) = gov.tick(temp) {
+                if fan::apply(wmi.as_ref(), mode).is_err() {
+                    gov.failed();
+                }
+            }
+        }
+        // Blind, the quiet lock is the one unsafe state: hand the fans to
+        // the firmware until the temperature can be read again.
+        Err(_) => {
+            if gov.locked() {
+                if fan::apply(wmi.as_ref(), FanMode::Auto).is_ok() {
+                    gov.released();
+                } else {
+                    gov.failed();
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -22,7 +22,9 @@ export function Overview({ control }: { control: Control }) {
                 ? t("unreachable", { error: unreachable })
                 : telemetry?.fanMode === "max"
                   ? t("statusMax")
-                  : t("statusAuto")}
+                  : telemetry?.fanMode === "quiet"
+                    ? t("statusQuiet")
+                    : t("statusAuto")}
           </p>
         </LiquidGlass>
         <LiquidGlass className="overview__card" radius={24}>

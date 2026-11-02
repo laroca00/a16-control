@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Telemetry } from "../api";
+import { FanModeSwitch } from "../components/FanModeSwitch";
 import { MaxFanButton } from "../components/MaxFanButton";
 import { Sparkline } from "../components/Sparkline";
 import type { useFanControl } from "../hooks/useFanControl";
@@ -30,6 +31,7 @@ export function FanPage({ control }: { control: Control }) {
       <div className="fan-page">
         <LiquidGlass className="fan-page__control" radius={28}>
           <MaxFanButton telemetry={telemetry} busy={busy} onToggle={toggle} />
+          <FanModeSwitch telemetry={telemetry} busy={busy} onChange={toggle} />
         </LiquidGlass>
         <LiquidGlass className="fan-page__charts" radius={24}>
           <p className="card__hint">{t("fanHistory")}</p>
