@@ -8,12 +8,17 @@ On the test machine, Max Fan took both fans from about 4,400/4,900 RPM to 6,380 
 
 ## What it does
 
-- Max Fan on and off, from the tray panel or the main window
-- Live speed of both fans and CPU and GPU temperature
+- Fan modes: Auto, Quiet and Max, from the tray, the panel or the main window
+- Power modes: Battery, Auto and Performance. Auto follows the charger and switches to Performance while a game runs
+- Keyboard lighting colour, effect and brightness
+- Screen brightness, refresh rate and a screen-off button
+- On battery, background apps are slowed with EcoQoS and routed to the integrated GPU
+- A warning when the CPU or GPU stays hot, with an option to turn Max Fan on
+- Global shortcuts: Ctrl+Alt+F for Max Fan, Ctrl+Alt+P for the next power mode, Ctrl+Up/Down for keyboard brightness
+- Live temperatures and fan mode in the tray tooltip
+- Checks GitHub for a newer version once a day
 - Turkish and English interface, picked from the Windows language on first start
 - Starts at sign-in without a UAC prompt
-
-Power modes, keyboard lighting and display controls are planned for later versions.
 
 ## Requirements
 
