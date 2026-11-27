@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::afterburner::AbOptions;
 use crate::fan::FanMode;
 use crate::keyboard::KeyboardSettings;
+use crate::monitor::AlertOptions;
 use crate::power::{Options, UiMode};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -26,6 +27,8 @@ pub struct Config {
     pub eco_targets: Vec<String>,
     /// Fan mode picked by hand, restored at start; cleared by a power mode choice.
     pub fan_mode: Option<FanMode>,
+    /// Warning for a chip that stays hot.
+    pub alerts: AlertOptions,
 }
 
 impl Default for Config {
@@ -45,6 +48,7 @@ impl Default for Config {
             eco_enabled: true,
             eco_targets: Vec::new(),
             fan_mode: None,
+            alerts: AlertOptions::default(),
         }
     }
 }

@@ -1,5 +1,5 @@
 //! App side of the keyboard light: settings, the lamp worker, the rainbow
-//! animation, periodic re-apply and the global brightness shortcuts.
+//! animation and periodic re-apply. The brightness shortcuts live in shortcuts.rs.
 
 use std::sync::Mutex;
 use std::thread;
@@ -95,29 +95,4 @@ pub fn spawn(app: AppHandle) {
             }
         }
     });
-}
-
-pub fn shortcut_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
-    use tauri_plugin_global_shortcut::{Code, ShortcutState};
-    tauri_plugin_global_shortcut::Builder::new()
-        .with_handler(|app, shortcut, event| {
-            if event.state != ShortcutState::Pressed {
-                return;
-            }
-            let raise = shortcut.key == Code::ArrowUp;
-            update(app, |s, _| s.brightness = keyboard::step_brightness(s.brightness, raise));
-        })
-        .build()
-}
-
-/// Ctrl+Up / Ctrl+Down for keyboard brightness. Registered after startup so
-/// a chord already taken by another program only disables the shortcut
-/// instead of stopping the app from starting.
-pub fn register_shortcuts(app: &AppHandle) {
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-    for code in [Code::ArrowUp, Code::ArrowDown] {
-        if let Err(e) = app.global_shortcut().register(Shortcut::new(Some(Modifiers::CONTROL), code)) {
-            eprintln!("keyboard shortcut unavailable: {e}");
-        }
-    }
 }

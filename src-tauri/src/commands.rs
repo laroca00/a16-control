@@ -11,6 +11,7 @@ use crate::fan::FanMode;
 use crate::gpu::{GpuCtl, GpuView};
 use crate::keyboard::KeyboardView;
 use crate::keyboard_ctl::{self, KeyboardCtl};
+use crate::monitor::{AlertOptions, ALERT_TEMPS};
 use crate::power::{self, PowerView, UiMode};
 use crate::setup::{self, SetupStatus, TASK_NAME};
 use crate::state::{self, AppState};
@@ -274,6 +275,42 @@ pub fn set_lang(app: AppHandle, state: State<'_, AppState>, lang: String) -> Res
 }
 
 #[tauri::command]
+pub fn get_alerts(state: State<'_, AppState>) -> AlertOptions {
+    state.config.lock().unwrap().alerts
+}
+
+#[tauri::command]
+pub fn set_alerts(state: State<'_, AppState>, options: AlertOptions) -> Result<AlertOptions, String> {
+    if !ALERT_TEMPS.contains(&options.temp) {
+        return Err(format!("the warning temperature must be {}-{} °C", ALERT_TEMPS.start(), ALERT_TEMPS.end()));
+    }
+    let mut cfg = state.config.lock().unwrap();
+    cfg.alerts = options;
+    config::save(&cfg)?;
+    Ok(options)
+}
+
+/// Only pages of this project's releases may be opened.
+pub const RELEASES_URL: &str = "https://github.com/laroca00/a16-control/releases/";
+
+pub fn is_release_page(url: &str) -> bool {
+    url.strip_prefix(RELEASES_URL)
+        .is_some_and(|rest| rest.chars().all(|c| c.is_ascii_alphanumeric() || "/.-_".contains(c)))
+}
+
+/// Opens a release page in the user's browser. The app runs elevated; going
+/// through explorer.exe hands the URL to the user's own shell, so the
+/// browser does not start elevated too.
+#[tauri::command]
+pub fn open_release_page(url: String) -> Result<(), String> {
+    if !is_release_page(&url) {
+        return Err("not a GiENEMY release page".into());
+    }
+    let windir = std::env::var_os("WINDIR").map(std::path::PathBuf::from).unwrap_or_else(|| r"C:\Windows".into());
+    std::process::Command::new(windir.join("explorer.exe")).arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn open_main(app: AppHandle) {
     tray::show_main(&app);
 }
@@ -312,6 +349,9 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         start_watch,
         cancel_watch,
         set_eco_enabled,
+        get_alerts,
+        set_alerts,
+        open_release_page,
         open_main,
         quit_app
     ]
@@ -325,4 +365,17 @@ pub fn lang(app: &AppHandle) -> String {
     // LANG_TURKISH is primary language 0x1F.
     let ui = unsafe { windows::Win32::Globalization::GetUserDefaultUILanguage() };
     if ui & 0x3FF == 0x1F { "tr".into() } else { "en".into() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_release_pages_open() {
+        assert!(is_release_page("https://github.com/laroca00/a16-control/releases/tag/v0.3.0"));
+        assert!(!is_release_page("https://github.com/laroca00/a16-control/issues"));
+        assert!(!is_release_page("https://evil.example/https://github.com/laroca00/a16-control/releases/"));
+        assert!(!is_release_page("https://github.com/laroca00/a16-control/releases/tag/v1 & calc"));
+    }
 }

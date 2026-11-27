@@ -77,3 +77,13 @@ export function KeyboardLightNotice() {
     </Notice>
   );
 }
+
+export function UpdateNotice({ version, url }: { version: string; url: string }) {
+  const t = useT();
+  return (
+    <Notice title={t("updateAvailable", { version })}>
+      <p className={body}>{t("updateNoticeBody")}</p>
+      <Button onClick={() => void api.openReleasePage(url)}>{t("updateDownload")}</Button>
+    </Notice>
+  );
+}

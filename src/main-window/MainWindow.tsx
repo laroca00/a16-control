@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Fan, Keyboard, LayoutDashboard, Monitor, Settings, Zap } from "lucide-react";
 import type { FanMode } from "@/api";
 import { TitleBar } from "@/components/TitleBar";
-import { KeyboardLightNotice, SetupNotice, UnsupportedNotice } from "@/components/Notices";
+import { KeyboardLightNotice, SetupNotice, UnsupportedNotice, UpdateNotice } from "@/components/Notices";
 import { SidebarNav, type NavGroupData, type NavItemData } from "@/components/ui/dashboard-sidebar";
 import { useFanControl } from "@/hooks/useFanControl";
 import { useT, type Key } from "@/i18n";
+import { useUpdate } from "@/lib/update";
 import { cn } from "@/lib/utils";
 import { FanPage } from "@/pages/FanPage";
 import { PowerPage } from "@/pages/PowerPage";
@@ -81,6 +82,8 @@ export function MainWindow() {
   const [page, setPage] = useState<Page>("overview");
   const [collapsed, toggleSidebar] = useSidebarCollapsed();
   const control = useFanControl();
+  const update = useUpdate({ auto: true });
+  const release = update.state.status === "available" ? update.state.release : null;
 
   const nav = (ids: Page[]): NavItemData[] =>
     PAGES.filter((p) => ids.includes(p.id)).map((p) => ({ id: p.id, title: t(p.label), icon: p.icon }));
@@ -100,11 +103,12 @@ export function MainWindow() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TitleBar title={t(current.label)} sidebarCollapsed={collapsed} onToggleSidebar={toggleSidebar} />
         <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
-          {(control.needsSetup || control.unsupported || control.status?.keyboardLight) && (
+          {(control.needsSetup || control.unsupported || control.status?.keyboardLight || release) && (
             <div className="grid gap-2">
               {control.needsSetup && <SetupNotice />}
               {control.unsupported && <UnsupportedNotice />}
               {control.status?.keyboardLight && <KeyboardLightNotice />}
+              {release && <UpdateNotice version={release.version} url={release.url} />}
             </div>
           )}
           <div key={page} className="flex flex-1 flex-col animate-in fade-in slide-in-from-bottom-1 duration-200">

@@ -11,9 +11,11 @@ pub mod gpu;
 pub mod hw;
 pub mod keyboard;
 pub mod keyboard_ctl;
+pub mod monitor;
 pub mod os;
 pub mod power;
 pub mod setup;
+pub mod shortcuts;
 pub mod state;
 pub mod telemetry;
 pub mod tray;
@@ -30,6 +32,9 @@ use crate::power::{Inputs, UiMode};
 use crate::state::{AppState, Connector};
 
 const TELEMETRY_INTERVAL: Duration = Duration::from_millis(1500);
+/// With no window open, temperatures are still read this often for the
+/// tray tooltip and the heat warning.
+const MONITOR_EVERY: Duration = Duration::from_secs(5);
 
 pub fn run(needs_setup: bool, tray_start: bool) {
     let connector: Option<Connector> = if needs_setup {
@@ -45,12 +50,14 @@ pub fn run(needs_setup: bool, tray_start: bool) {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
-        .plugin(keyboard_ctl::shortcut_plugin())
+        .plugin(shortcuts::plugin())
+        .plugin(tauri_plugin_notification::init())
         .manage(state)
         .manage(keyboard)
         .manage(display::DisplayState::default())
         .manage(gpu::GpuCtl::new())
         .manage(battery_ctl::BatteryCtl::default())
+        .manage(monitor::Monitor::default())
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -63,7 +70,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
             }
             spawn_background(app.handle().clone());
             keyboard_ctl::spawn(app.handle().clone());
-            keyboard_ctl::register_shortcuts(app.handle());
+            shortcuts::register(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -194,10 +201,12 @@ fn gpu_tick(app: &AppHandle) {
     }
 }
 
-/// One loop for the show-window requests and telemetry. Telemetry is only
-/// read while someone can see it.
+/// One loop for the show-window requests and telemetry. Telemetry is read on
+/// every tick while a window shows it, and every few seconds otherwise for
+/// the tray tooltip and the heat warning.
 fn spawn_background(app: AppHandle) {
     let mut last_gpu = std::time::Instant::now() - GPU_CHECK_EVERY;
+    let mut last_monitor = std::time::Instant::now() - MONITOR_EVERY;
     thread::spawn(move || loop {
         let request = config::show_request_path();
         if request.exists() {
@@ -213,14 +222,23 @@ fn spawn_background(app: AppHandle) {
             last_gpu = std::time::Instant::now();
             gpu_tick(&app);
         }
-        if any_window_visible(&app) {
+        let visible = any_window_visible(&app);
+        if visible || last_monitor.elapsed() >= MONITOR_EVERY {
+            last_monitor = std::time::Instant::now();
             match app.state::<AppState>().telemetry() {
                 Ok(t) => {
                     tray::sync_fan_check(&app, Some(&t));
-                    let _ = app.emit("telemetry", t);
+                    tray::sync_tooltip(&app, Some(&t));
+                    monitor::check_temp(&app, &t);
+                    if visible {
+                        let _ = app.emit("telemetry", t);
+                    }
                 }
                 Err(e) => {
-                    let _ = app.emit("telemetry-error", e);
+                    tray::sync_tooltip(&app, None);
+                    if visible {
+                        let _ = app.emit("telemetry-error", e);
+                    }
                 }
             }
         }

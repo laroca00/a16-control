@@ -36,6 +36,8 @@ vi.mock("../api", async (orig) => {
       openMain: vi.fn(),
       getConfig: vi.fn(() => Promise.resolve({ lang: null })),
       setLang: vi.fn(() => Promise.resolve()),
+      getAlerts: vi.fn(() => Promise.resolve({ enabled: true, temp: 90, maxFan: false })),
+      setAlerts: vi.fn((o) => Promise.resolve(o)),
     },
   };
 });
@@ -79,4 +81,13 @@ test("sidebar collapses to icons and remembers it", async () => {
   expect(localStorage.getItem("gienemy.sidebarCollapsed")).toBe("1");
   await userEvent.keyboard("{Control>}b{/Control}");
   expect(screen.getByRole("complementary")).not.toHaveAttribute("data-collapsed");
+});
+
+test("heat warning settings reach the backend", async () => {
+  renderMain();
+  await userEvent.click(screen.getByRole("button", { name: "Ayarlar" }));
+  await userEvent.click(await screen.findByRole("switch", { name: "Uyarıyla birlikte Max Fan'ı aç" }));
+  expect(api.setAlerts).toHaveBeenCalledWith({ enabled: true, temp: 90, maxFan: true });
+  await userEvent.click(screen.getByRole("radio", { name: "95°C" }));
+  expect(api.setAlerts).toHaveBeenLastCalledWith({ enabled: true, temp: 95, maxFan: true });
 });

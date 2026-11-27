@@ -25,6 +25,9 @@ export type SetupStatus = {
 
 export type Config = { lang: string | null };
 
+/** Heat warning: notify when the hotter chip stays at or over `temp` °C. */
+export type AlertOptions = { enabled: boolean; temp: number; maxFan: boolean };
+
 export type UiMode = "battery" | "auto" | "performance";
 export type ProfileId = "battery" | "balancedAc" | "balancedDc" | "performance";
 export type Reason = "userBattery" | "userPerformance" | "autoAc" | "autoDc" | "autoLowBattery" | "autoGame";
@@ -91,4 +94,7 @@ export const api = {
   setRefreshRate: (hz: number) => invoke<DisplayView>("set_refresh_rate", { hz }),
   screenOff: () => invoke<void>("screen_off"),
   screenOn: () => invoke<void>("screen_on"),
+  getAlerts: () => invoke<AlertOptions>("get_alerts"),
+  setAlerts: (options: AlertOptions) => invoke<AlertOptions>("set_alerts", { options }),
+  openReleasePage: (url: string) => invoke<void>("open_release_page", { url }),
 };
