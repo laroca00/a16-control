@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, type DisplayView } from "../api";
-import { useT } from "../i18n";
-import { LiquidGlass } from "../ui/LiquidGlass";
+import { api, type DisplayView } from "@/api";
+import { Button } from "@/components/ui/button";
+import { Section, Sections } from "@/components/ui/section";
+import { Segmented } from "@/components/ui/segmented";
+import { Slider } from "@/components/ui/slider";
+import { useT } from "@/i18n";
 
 export function DisplayPage() {
   const t = useT();
@@ -31,58 +34,38 @@ export function DisplayPage() {
   };
 
   return (
-    <div className="page page--display">
-      <h1 className="page__title">{t("navDisplay")}</h1>
-      <div className="settings">
-        <LiquidGlass className="settings__card" radius={24}>
-          <label className="kb-slider">
-            <span>{t("dispBrightness")}</span>
-            <input
-              type="range"
-              min={5}
-              max={100}
-              step={5}
-              aria-label={t("dispBrightness")}
-              value={draft ?? d?.brightness ?? 50}
-              disabled={d?.brightness == null}
-              onChange={(e) => setDraft(Number(e.target.value))}
-              onPointerUp={commitBrightness}
-              onKeyUp={commitBrightness}
-              onBlur={commitBrightness}
-            />
-            <output>{draft ?? d?.brightness ?? "–"}%</output>
-          </label>
-        </LiquidGlass>
+    <Sections>
+      <Section title={t("dispBrightness")}>
+        <Slider
+          label={t("dispBrightness")}
+          hideLabel
+          min={5}
+          max={100}
+          step={5}
+          value={draft ?? d?.brightness ?? 50}
+          output={`${draft ?? d?.brightness ?? "–"}%`}
+          disabled={d?.brightness == null}
+          onChange={setDraft}
+          onCommit={commitBrightness}
+        />
+      </Section>
 
-        {d && d.rates.length > 1 && (
-          <LiquidGlass className="settings__card" radius={24}>
-            <h2 className="card__title" id="refresh-title">
-              {t("dispRefresh")}
-            </h2>
-            <div className="segmented" role="radiogroup" aria-labelledby="refresh-title">
-              {d.rates.map((hz) => (
-                <button
-                  key={hz}
-                  type="button"
-                  role="radio"
-                  aria-checked={d.refresh === hz}
-                  className={`segmented__item${d.refresh === hz ? " segmented__item--on" : ""}`}
-                  onClick={() => run(api.setRefreshRate(hz))}
-                >
-                  {t("hzValue", { value: hz })}
-                </button>
-              ))}
-            </div>
-          </LiquidGlass>
-        )}
+      {d && d.rates.length > 1 && (
+        <Section title={t("dispRefresh")} titleId="refresh-title">
+          <Segmented
+            aria-labelledby="refresh-title"
+            options={d.rates.map((hz) => ({ value: hz, label: t("hzValue", { value: hz }) }))}
+            value={d.refresh}
+            onChange={(hz) => run(api.setRefreshRate(hz))}
+          />
+        </Section>
+      )}
 
-        <LiquidGlass className="settings__card" radius={24}>
-          <p className="card__body">{t("dispOffHint")}</p>
-          <button type="button" className="ghost-button" onClick={() => void api.screenOff()}>
-            {t("dispOff")}
-          </button>
-        </LiquidGlass>
-      </div>
-    </div>
+      <Section title={t("dispBlank")} description={t("dispOffHint")}>
+        <Button variant="secondary" onClick={() => void api.screenOff()}>
+          {t("dispOff")}
+        </Button>
+      </Section>
+    </Sections>
   );
 }

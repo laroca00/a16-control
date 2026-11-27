@@ -39,12 +39,6 @@ export function MaxFanButton({ telemetry, busy, onToggle }: Props) {
       onClick={() => onToggle(on ? "auto" : "max")}
     >
       <svg className="fan-dial__rings" viewBox="0 0 200 200" aria-hidden="true">
-        <defs>
-          <linearGradient id="fan-hot" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="var(--bole)" />
-            <stop offset="1" stopColor="var(--gilt)" />
-          </linearGradient>
-        </defs>
         <g transform="rotate(135 100 100)">
           <Ring r={86} rpm={telemetry?.rpm1 ?? 0} />
           <Ring r={70} rpm={telemetry?.rpm2 ?? 0} />

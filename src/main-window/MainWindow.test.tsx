@@ -67,3 +67,16 @@ test("settings lists setup checks", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Ayarlar" }));
   expect(await screen.findByText("Yönetici yetkisiyle çalışıyor")).toBeInTheDocument();
 });
+
+test("sidebar collapses to icons and remembers it", async () => {
+  localStorage.clear();
+  renderMain();
+  await userEvent.click(screen.getByRole("button", { name: "Kenar çubuğunu daralt" }));
+  expect(screen.getByRole("complementary")).toHaveAttribute("data-collapsed", "true");
+  // Labels stay for screen readers, so navigation still works by name.
+  await userEvent.click(screen.getByRole("button", { name: "Fan" }));
+  expect(screen.getByRole("heading", { level: 1, name: "Fan" })).toBeInTheDocument();
+  expect(localStorage.getItem("gienemy.sidebarCollapsed")).toBe("1");
+  await userEvent.keyboard("{Control>}b{/Control}");
+  expect(screen.getByRole("complementary")).not.toHaveAttribute("data-collapsed");
+});

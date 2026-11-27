@@ -1,28 +1,15 @@
-.keyboard-page {
-  display: grid;
-  grid-template-columns: minmax(360px, 1.3fr) minmax(280px, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.kb-preview-card {
-  --glass-tint: linear-gradient(180deg, rgb(11 24 70 / 0.3), rgb(11 24 70 / 0.5));
-  display: grid;
-  gap: 14px;
-  padding: 26px 22px 18px;
-}
-
-/* The keys glow in the chosen colour; the glow scales with brightness. */
+/* The backlight preview is the keyboard page's one rich object: keys glow in
+   the chosen colour and the glow scales with brightness. */
 .kb-preview {
   display: grid;
   gap: 6px;
   padding: 16px;
-  border-radius: 16px;
-  background: #070d26;
+  border-radius: 12px;
+  background: #0a0a0b;
   box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.06),
-    0 0 calc(60px * var(--kb-level)) color-mix(in srgb, var(--kb-color) calc(45% * var(--kb-level)), transparent);
-  transition: box-shadow var(--duration-slow) var(--ease);
+    inset 0 0 0 1px var(--border),
+    0 0 calc(60px * var(--kb-level)) color-mix(in srgb, var(--kb-color) calc(40% * var(--kb-level)), transparent);
+  transition: box-shadow 640ms var(--ease-out);
 }
 
 .kb-preview__row {
@@ -34,19 +21,19 @@
   flex-basis: 0;
   height: 24px;
   border-radius: 5px;
-  background: #121a3a;
+  background: #1a1a1d;
   box-shadow:
-    inset 0 -2px 0 rgb(0 0 0 / 0.35),
+    inset 0 -2px 0 rgb(0 0 0 / 0.4),
     0 0 calc(10px * var(--kb-level)) color-mix(in srgb, var(--kb-color) calc(70% * var(--kb-level)), transparent);
-  border-bottom: 2px solid color-mix(in srgb, var(--kb-color) calc(100% * var(--kb-level)), #121a3a);
+  border-bottom: 2px solid color-mix(in srgb, var(--kb-color) calc(100% * var(--kb-level)), #1a1a1d);
   transition:
-    box-shadow var(--duration-slow) var(--ease),
-    border-color var(--duration-slow) var(--ease);
+    box-shadow 640ms var(--ease-out),
+    border-color 640ms var(--ease-out);
 }
 
 .kb-preview--off .kb-preview__key {
-  border-bottom-color: #121a3a;
-  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.35);
+  border-bottom-color: #1a1a1d;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.4);
 }
 
 .kb-preview--rainbow .kb-preview__key {
@@ -65,84 +52,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .kb-preview--rainbow .kb-preview__key {
-    animation: none;
-  }
-}
-
-.swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.swatch {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25);
-  cursor: pointer;
-  transition: transform var(--duration-quick) var(--ease);
-}
-
-.swatch:hover {
-  transform: scale(1.08);
-}
-
-.swatch--on {
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.25),
-    0 0 0 3px var(--ink),
-    0 0 0 5px var(--gilt);
-}
-
-.swatch--custom {
-  display: grid;
-  place-items: center;
+/* The custom colour swatch shows the whole wheel it opens. */
+.swatch-custom {
   background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
-  overflow: hidden;
-}
-
-.swatch--custom input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.kb-slider {
-  display: grid;
-  grid-template-columns: auto 1fr 3.5ch;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.9375rem;
-}
-
-.kb-slider input {
-  accent-color: var(--gilt);
-}
-
-.kb-slider output {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: var(--glaze-muted);
-}
-
-.ghost-button {
-  justify-self: start;
-  min-height: 38px;
-  padding: 6px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.12);
-  cursor: pointer;
-  transition: background var(--duration-quick) var(--ease);
-}
-
-.ghost-button:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.2);
 }

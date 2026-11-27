@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, type AbOptions, type AfterburnerView, type BatteryView, type GpuView, type PowerOptions } from "../api";
-import { ModeSwitch } from "../components/ModeSwitch";
-import { usePower } from "../hooks/usePower";
-import { useT, type Key } from "../i18n";
-import { LiquidGlass } from "../ui/LiquidGlass";
+import { api, type AbOptions, type AfterburnerView, type BatteryView, type GpuView, type PowerOptions } from "@/api";
+import { ModeSwitch } from "@/components/ModeSwitch";
+import { Button } from "@/components/ui/button";
+import { Stat } from "@/components/ui/card";
+import { Section, Sections } from "@/components/ui/section";
+import { SwitchRow } from "@/components/ui/switch";
+import { usePower } from "@/hooks/usePower";
+import { useT, type Key } from "@/i18n";
 
 const LIMITS: { key: "fppt" | "sppt" | "spl"; label: Key }[] = [
   { key: "fppt", label: "limitBurst" },
@@ -17,22 +20,7 @@ const OPTIONS: { key: keyof PowerOptions; label: Key }[] = [
   { key: "autoGame", label: "optGame" },
 ];
 
-function Toggle({ label, on, disabled, onChange }: { label: string; on: boolean; disabled: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="toggle">
-      <span>{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={label}
-        className={`toggle__switch${on ? " toggle__switch--on" : ""}`}
-        disabled={disabled}
-        onClick={() => onChange(!on)}
-      />
-    </label>
-  );
-}
+const errorText = "text-[13px] text-destructive-foreground";
 
 export function PowerPage() {
   const t = useT();
@@ -66,138 +54,134 @@ export function PowerPage() {
   const gpuLine = gpu?.state === "d0" ? t("gpuAwake") : gpu?.state === "d3" ? t("gpuAsleep") : t("gpuUnknown");
 
   return (
-    <div className="page page--power">
-      <h1 className="page__title">{t("navPower")}</h1>
-      <div className="settings">
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title">{t("modeLabel")}</h2>
-          <ModeSwitch power={power} onChange={setMode} size="large" />
-          {power?.lastError && <p className="card__error">{t("powerFailed", { error: power.lastError })}</p>}
-        </LiquidGlass>
+    <Sections>
+      <Section title={t("modeLabel")}>
+        <ModeSwitch power={power} onChange={setMode} size="large" />
+        {power?.lastError && <p className={errorText}>{t("powerFailed", { error: power.lastError })}</p>}
+      </Section>
 
-        {power?.limits && (
-          <LiquidGlass className="settings__card" radius={24}>
-            <h2 className="card__title">{t("powerLimits")}</h2>
-            <dl className="limits">
-              {LIMITS.map((l) => (
-                <div key={l.key}>
-                  <dt>{t(l.label)}</dt>
-                  <dd>{t("wattValue", { value: Math.round(power.limits![l.key] / 1000) })}</dd>
-                </div>
-              ))}
-            </dl>
-          </LiquidGlass>
+      {power?.limits && (
+        <Section title={t("powerLimits")} description={t("powerLimitsBody")}>
+          <dl className="grid w-full grid-cols-3 gap-2">
+            {LIMITS.map((l) => (
+              <Stat key={l.key} label={t(l.label)} value={t("wattValue", { value: Math.round(power.limits![l.key] / 1000) })} />
+            ))}
+          </dl>
+        </Section>
+      )}
+
+      <Section title={t("powerSwitching")}>
+        {OPTIONS.map((o) => (
+          <SwitchRow
+            key={o.key}
+            label={t(o.label)}
+            checked={power?.options[o.key] ?? false}
+            disabled={!power}
+            onCheckedChange={(v) => setOption(o.key, v)}
+          />
+        ))}
+      </Section>
+
+      <Section title={t("gpuTitle")} description={gpuLine}>
+        <SwitchRow
+          label={t("gpuIgpu")}
+          checked={gpu?.igpuOnBattery ?? false}
+          disabled={!gpu}
+          onCheckedChange={(v) => api.setGpuOption("igpuOnBattery", v).then(setGpu)}
+        />
+        <SwitchRow
+          label={t("gpuReset")}
+          checked={gpu?.autoReset ?? false}
+          disabled={!gpu}
+          onCheckedChange={(v) => api.setGpuOption("autoReset", v).then(setGpu)}
+        />
+      </Section>
+
+      <Section title={t("watchTitle")} description={t("watchBody")}>
+        {battery?.watching ? (
+          <>
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={Math.round(battery.progress * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <span
+                className="block h-full rounded-full bg-primary transition-[width] duration-700"
+                style={{ width: `${battery.progress * 100}%` }}
+              />
+            </div>
+            <p className="font-mono text-xs text-muted-foreground tabular-nums">
+              {t("watchProgress", { pct: Math.round(battery.progress * 100) })}
+            </p>
+            <Button variant="secondary" onClick={() => api.cancelWatch().then(setBattery)}>
+              {t("watchCancel")}
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" disabled={!battery} onClick={startWatch}>
+            {t("watchStart")}
+          </Button>
         )}
-
-        <LiquidGlass className="settings__card" radius={24}>
-          {OPTIONS.map((o) => (
-            <Toggle
-              key={o.key}
-              label={t(o.label)}
-              on={power?.options[o.key] ?? false}
-              disabled={!power}
-              onChange={(v) => setOption(o.key, v)}
+        {watchError && <p className={errorText}>{t("watchOnAc")}</p>}
+        {battery?.summary && (
+          <dl className="grid w-full grid-cols-3 gap-2">
+            <Stat
+              label={t("watchAvgPower")}
+              value={battery.summary.avgWatts == null ? "–" : t("wattValue", { value: battery.summary.avgWatts.toFixed(1) })}
             />
-          ))}
-        </LiquidGlass>
-
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title">{t("gpuTitle")}</h2>
-          <p className="card__body">{gpuLine}</p>
-          <Toggle
-            label={t("gpuIgpu")}
-            on={gpu?.igpuOnBattery ?? false}
-            disabled={!gpu}
-            onChange={(v) => api.setGpuOption("igpuOnBattery", v).then(setGpu)}
-          />
-          <Toggle
-            label={t("gpuReset")}
-            on={gpu?.autoReset ?? false}
-            disabled={!gpu}
-            onChange={(v) => api.setGpuOption("autoReset", v).then(setGpu)}
-          />
-        </LiquidGlass>
-
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title">{t("watchTitle")}</h2>
-          <p className="card__body">{t("watchBody")}</p>
-          {battery?.watching ? (
-            <>
-              <div className="progress" role="progressbar" aria-valuenow={Math.round(battery.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
-                <span style={{ width: `${battery.progress * 100}%` }} />
-              </div>
-              <p className="card__hint">{t("watchProgress", { pct: Math.round(battery.progress * 100) })}</p>
-              <button type="button" className="ghost-button" onClick={() => api.cancelWatch().then(setBattery)}>
-                {t("watchCancel")}
-              </button>
-            </>
-          ) : (
-            <button type="button" className="ghost-button" disabled={!battery} onClick={startWatch}>
-              {t("watchStart")}
-            </button>
-          )}
-          {watchError && <p className="card__error">{t("watchOnAc")}</p>}
-          {battery?.summary && (
-            <>
-              <dl className="limits">
-                <div>
-                  <dt>{t("watchAvgPower")}</dt>
-                  <dd>{battery.summary.avgWatts == null ? "–" : t("wattValue", { value: battery.summary.avgWatts.toFixed(1) })}</dd>
-                </div>
-                <div>
-                  <dt>{t("watchAvgCpu")}</dt>
-                  <dd>{t("pctValue", { value: Math.round(battery.summary.avgCpu) })}</dd>
-                </div>
-                <div>
-                  <dt>{t("watchIdle")}</dt>
-                  <dd>{t("pctValue", { value: Math.round(battery.summary.idlePct) })}</dd>
-                </div>
-              </dl>
-            </>
-          )}
-          {battery && battery.targets.length > 0 ? (
-            <>
-              <h3 className="card__title">{t("watchTargets")}</h3>
-              <ul className="targets">
-                {battery.targets.map((name) => (
-                  <li key={name}>{name}</li>
-                ))}
-              </ul>
-              <Toggle label={t("ecoToggle")} on={battery.ecoEnabled} disabled={false} onChange={(v) => api.setEcoEnabled(v).then(setBattery)} />
-            </>
-          ) : (
-            battery?.summary && <p className="card__hint">{t("watchNoTargets")}</p>
-          )}
-        </LiquidGlass>
-
-        {ab?.installed && (
-          <LiquidGlass className="settings__card" radius={24}>
-            <h2 className="card__title">MSI Afterburner</h2>
-            <Toggle label={t("abEnable")} on={ab.options.enabled} disabled={false} onChange={(v) => changeAb({ enabled: v })} />
-            {ab.options.enabled && (
-              <div className="ab-profiles">
-                {(["ocProfile", "stockProfile"] as const).map((key) => (
-                  <label key={key} className="ab-profile">
-                    <span>{t(key === "ocProfile" ? "abOc" : "abStock")}</span>
-                    <select
-                      aria-label={t(key === "ocProfile" ? "abOc" : "abStock")}
-                      value={ab.options[key]}
-                      onChange={(e) => changeAb({ [key]: Number(e.target.value) })}
-                    >
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-            )}
-            <p className="card__hint">{t("abHint")}</p>
-          </LiquidGlass>
+            <Stat label={t("watchAvgCpu")} value={t("pctValue", { value: Math.round(battery.summary.avgCpu) })} />
+            <Stat label={t("watchIdle")} value={t("pctValue", { value: Math.round(battery.summary.idlePct) })} />
+          </dl>
         )}
-      </div>
-    </div>
+        {battery && battery.targets.length > 0 ? (
+          <div className="flex w-full flex-col gap-3">
+            <h3 className="text-[13px] font-medium">{t("watchTargets")}</h3>
+            <ul className="flex flex-wrap gap-2">
+              {battery.targets.map((name) => (
+                <li key={name} className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
+                  {name}
+                </li>
+              ))}
+            </ul>
+            <SwitchRow
+              label={t("ecoToggle")}
+              checked={battery.ecoEnabled}
+              onCheckedChange={(v) => api.setEcoEnabled(v).then(setBattery)}
+            />
+          </div>
+        ) : (
+          battery?.summary && <p className="text-[13px] text-muted-foreground">{t("watchNoTargets")}</p>
+        )}
+      </Section>
+
+      {ab?.installed && (
+        <Section title="MSI Afterburner" description={t("abHint")}>
+          <SwitchRow label={t("abEnable")} checked={ab.options.enabled} onCheckedChange={(v) => changeAb({ enabled: v })} />
+          {ab.options.enabled && (
+            <div className="flex gap-4">
+              {(["ocProfile", "stockProfile"] as const).map((key) => (
+                <label key={key} className="flex items-center gap-2 text-[13px]">
+                  <span>{t(key === "ocProfile" ? "abOc" : "abStock")}</span>
+                  <select
+                    className="h-8 cursor-pointer rounded-md border border-input bg-background px-2 font-mono text-[13px]"
+                    aria-label={t(key === "ocProfile" ? "abOc" : "abStock")}
+                    value={ab.options[key]}
+                    onChange={(e) => changeAb({ [key]: Number(e.target.value) })}
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+    </Sections>
   );
 }

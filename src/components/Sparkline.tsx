@@ -1,12 +1,17 @@
+import { cn } from "@/lib/utils";
+
 type Props = {
   values: number[];
   max: number;
   label: string;
-  tone?: "turquoise" | "bole" | "gilt";
+  /** fan and heat lead their chart; muted is the quieter second series. */
+  tone?: "fan" | "heat" | "muted";
 };
 
 const W = 100;
 const H = 30;
+
+const STROKE = { fan: "stroke-chart-1", heat: "stroke-chart-2", muted: "stroke-chart-muted" } as const;
 
 export function sparkPath(values: number[], max: number): string {
   if (values.length === 0) return "";
@@ -19,10 +24,20 @@ export function sparkPath(values: number[], max: number): string {
     .join(" ");
 }
 
-export function Sparkline({ values, max, label, tone = "turquoise" }: Props) {
+export function Sparkline({ values, max, label, tone = "fan" }: Props) {
   return (
-    <svg className={`sparkline sparkline--${tone}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label}>
-      <path d={sparkPath(values, max)} vectorEffect="non-scaling-stroke" />
+    <svg
+      className="absolute inset-2 h-[calc(100%-16px)] w-[calc(100%-16px)]"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={label}
+    >
+      <path
+        d={sparkPath(values, max)}
+        vectorEffect="non-scaling-stroke"
+        className={cn("fill-none [stroke-linejoin:round] [stroke-width:1.5]", STROKE[tone])}
+      />
     </svg>
   );
 }

@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { api, type SetupStatus } from "../api";
-import { useLang, useT, type Key, type Lang } from "../i18n";
-import { LiquidGlass } from "../ui/LiquidGlass";
+import { Check, Minus, X } from "lucide-react";
+import { api, type SetupStatus } from "@/api";
+import { Button } from "@/components/ui/button";
+import { Section, Sections } from "@/components/ui/section";
+import { Segmented } from "@/components/ui/segmented";
+import { useLang, useT, type Key, type Lang } from "@/i18n";
+import { cn } from "@/lib/utils";
 
 const CHECKS: { key: Key; ok: (s: SetupStatus) => boolean }[] = [
   { key: "checkElevated", ok: (s) => s.elevated },
@@ -11,9 +15,9 @@ const CHECKS: { key: Key; ok: (s: SetupStatus) => boolean }[] = [
   { key: "checkKeyboardLight", ok: (s) => !s.keyboardLight },
 ];
 
-const LANGS: { id: Lang; name: string }[] = [
-  { id: "tr", name: "Türkçe" },
-  { id: "en", name: "English" },
+const LANGS: { value: Lang; label: string }[] = [
+  { value: "tr", label: "Türkçe" },
+  { value: "en", label: "English" },
 ];
 
 export function SettingsPage({ status }: { status: SetupStatus | null }) {
@@ -30,55 +34,40 @@ export function SettingsPage({ status }: { status: SetupStatus | null }) {
   }
 
   return (
-    <div className="page page--settings">
-      <h1 className="page__title">{t("navSettings")}</h1>
-      <div className="settings">
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title" id="lang-title">
-            {t("language")}
-          </h2>
-          <div className="segmented" role="radiogroup" aria-labelledby="lang-title">
-            {LANGS.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                role="radio"
-                aria-checked={lang === l.id}
-                className={`segmented__item${lang === l.id ? " segmented__item--on" : ""}`}
-                onClick={() => setLang(l.id)}
-              >
-                {l.name}
-              </button>
-            ))}
-          </div>
-        </LiquidGlass>
+    <Sections>
+      <Section title={t("language")} titleId="lang-title">
+        <Segmented aria-labelledby="lang-title" options={LANGS} value={lang} onChange={setLang} />
+      </Section>
 
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title">{t("setupChecks")}</h2>
-          <ul className="checks">
-            {CHECKS.map((c) => {
-              const ok = status ? c.ok(status) : null;
-              return (
-                <li key={c.key} className={`checks__row checks__row--${ok === null ? "unknown" : ok ? "ok" : "bad"}`}>
-                  <span className="checks__mark" aria-hidden="true">
-                    {ok === null ? "…" : ok ? "✓" : "✕"}
-                  </span>
-                  {t(c.key)}
-                </li>
-              );
-            })}
-          </ul>
-        </LiquidGlass>
+      <Section title={t("setupChecks")}>
+        <ul className="flex flex-col gap-2">
+          {CHECKS.map((c) => {
+            const ok = status ? c.ok(status) : null;
+            const Icon = ok === null ? Minus : ok ? Check : X;
+            return (
+              <li key={c.key} className="flex items-center gap-2.5 text-[13px]">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "grid size-5 shrink-0 place-items-center rounded-full",
+                    ok === null ? "bg-muted text-muted-foreground" : ok ? "bg-chart-1/15 text-chart-1" : "bg-destructive/15 text-destructive-foreground",
+                  )}
+                >
+                  <Icon className="size-3" strokeWidth={2} />
+                </span>
+                {t(c.key)}
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
 
-        <LiquidGlass className="settings__card" radius={24}>
-          <h2 className="card__title">{t("uninstallTitle")}</h2>
-          <p className="card__body">{t("uninstallBody")}</p>
-          {error && <p className="card__error">{t("errorGeneric", { error })}</p>}
-          <button type="button" className="danger-button" onClick={uninstall}>
-            {t("uninstallAction")}
-          </button>
-        </LiquidGlass>
-      </div>
-    </div>
+      <Section title={t("uninstallTitle")} description={t("uninstallBody")}>
+        {error && <p className="text-[13px] text-destructive-foreground">{t("errorGeneric", { error })}</p>}
+        <Button variant="destructive" onClick={uninstall}>
+          {t("uninstallAction")}
+        </Button>
+      </Section>
+    </Sections>
   );
 }

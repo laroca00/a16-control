@@ -1,7 +1,36 @@
-import { useState } from "react";
-import { api } from "../api";
-import { useT } from "../i18n";
-import "./Notices.css";
+import { useState, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
+import { api } from "@/api";
+import { useT } from "@/i18n";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+function Notice({
+  title,
+  warn,
+  children,
+  live,
+}: {
+  title: string;
+  warn?: boolean;
+  children: ReactNode;
+  live?: boolean;
+}) {
+  return (
+    <section
+      aria-live={live ? "polite" : undefined}
+      className={cn("flex w-full gap-3 rounded-lg border bg-card p-4", warn && "border-primary/40")}
+    >
+      {warn && <TriangleAlert aria-hidden="true" strokeWidth={1.5} className="mt-0.5 size-4 shrink-0 text-primary" />}
+      <div className="flex min-w-0 flex-col items-start gap-2">
+        <h2 className="text-[13px] leading-5 font-medium">{title}</h2>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+const body = "text-[13px] leading-5 text-muted-foreground";
 
 export function SetupNotice() {
   const t = useT();
@@ -21,33 +50,30 @@ export function SetupNotice() {
   }
 
   return (
-    <section className="notice" aria-live="polite">
-      <h2 className="notice__title">{t("setupTitle")}</h2>
-      <p className="notice__body">{t("setupBody")}</p>
-      {error && <p className="notice__error">{t("setupFailed", { error })}</p>}
-      <button type="button" className="notice__action" onClick={install} disabled={working}>
+    <Notice title={t("setupTitle")} live>
+      <p className={body}>{t("setupBody")}</p>
+      {error && <p className="text-[13px] text-destructive-foreground">{t("setupFailed", { error })}</p>}
+      <Button onClick={install} disabled={working}>
         {working ? t("setupWorking") : t("setupAction")}
-      </button>
-    </section>
+      </Button>
+    </Notice>
   );
 }
 
 export function UnsupportedNotice() {
   const t = useT();
   return (
-    <section className="notice notice--warn">
-      <h2 className="notice__title">{t("unsupportedTitle")}</h2>
-      <p className="notice__body">{t("unsupportedBody")}</p>
-    </section>
+    <Notice title={t("unsupportedTitle")} warn>
+      <p className={body}>{t("unsupportedBody")}</p>
+    </Notice>
   );
 }
 
 export function KeyboardLightNotice() {
   const t = useT();
   return (
-    <section className="notice notice--warn">
-      <h2 className="notice__title">{t("klTitle")}</h2>
-      <p className="notice__body">{t("klBody")}</p>
-    </section>
+    <Notice title={t("klTitle")} warn>
+      <p className={body}>{t("klBody")}</p>
+    </Notice>
   );
 }

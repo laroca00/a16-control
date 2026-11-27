@@ -31,7 +31,9 @@ export const tr: Record<keyof typeof en, string> = {
 
   winMinimize: "Küçült",
   winMaximize: "Büyüt",
-  winClose: "Tray'e gizle",
+  winClose: "Sistem tepsisine gizle",
+  sidebarCollapse: "Kenar çubuğunu daralt",
+  sidebarExpand: "Kenar çubuğunu genişlet",
 
   navOverview: "Genel",
   navFan: "Fan",
@@ -49,7 +51,7 @@ export const tr: Record<keyof typeof en, string> = {
   statusQuiet: "Fanlar 2500 RPM civarında tutuluyor. 80°C'yi geçince soğuyana kadar firmware devralır.",
 
   fanModeLabel: "Fan modu",
-  fanModeAuto: "Auto",
+  fanModeAuto: "Otomatik",
   fanModeQuiet: "Sessiz",
   fanModeMax: "Max",
 
@@ -59,7 +61,7 @@ export const tr: Record<keyof typeof en, string> = {
 
 
   modeBattery: "Pil",
-  modeAuto: "Auto",
+  modeAuto: "Otomatik",
   modePerformance: "Performans",
   modeLabel: "Güç modu",
   reasonUserBattery: "Verimli mod, 60 Hz ve kısık ekran",
@@ -69,12 +71,14 @@ export const tr: Record<keyof typeof en, string> = {
   reasonAutoLowBattery: "Pil azaldı, en çok tasarruf",
   reasonAutoGame: "Oyun algılandı, tam güç",
   powerLimits: "İşlemci güç limitleri",
+  powerLimitsBody: "Geçerli modun işlemciye izin verdiği güç",
+  powerSwitching: "Otomatik geçiş",
   limitBurst: "Kısa atak",
   limitSlow: "Sürekli boost",
   limitSustained: "Uzun yük",
   wattValue: "{value} W",
-  optAcdc: "Prize takınca Auto'ya, çıkarınca Pil'e geç",
-  optGame: "Auto'da oyun algılanınca tam güç kullan (prizdeyken)",
+  optAcdc: "Prize takınca Otomatik moda, çıkarınca Pil moduna geç",
+  optGame: "Otomatik modda oyun algılanınca tam güç kullan (prizdeyken)",
   powerFailed: "Bazı ayarlar uygulanamadı: {error}",
   kbPresets: "Renkler",
   kbCustom: "Özel renk",
@@ -96,6 +100,7 @@ export const tr: Record<keyof typeof en, string> = {
   hzValue: "{value} Hz",
   dispOff: "Ekranı kapat",
   dispOffHint: "Ekran uyku ya da kilit olmadan kararır. Geri getirmek için bir tuşa bas ya da fareyi oynat.",
+  dispBlank: "Ekranı karart",
   gpuTitle: "Ekran kartı",
   gpuAwake: "Ekran kartı: uyanık",
   gpuAsleep: "Ekran kartı: uykuda",

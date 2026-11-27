@@ -1,3 +1,4 @@
+/* The dial is the one rich object on screen: two live rings around the switch. */
 .fan-dial {
   position: relative;
   display: grid;
@@ -7,15 +8,17 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 38%, rgb(255 255 255 / 0.14), rgb(11 24 70 / 0.35) 62%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    inset 0 0 0 1px rgb(255 255 255 / 0.08),
-    0 18px 40px rgb(0 0 0 / 0.3);
+  background: var(--background);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--foreground);
   cursor: pointer;
   transition:
-    transform var(--duration-quick) var(--ease),
-    box-shadow var(--duration-standard) var(--ease);
+    transform 120ms var(--ease-out),
+    background-color 150ms var(--ease-out);
+}
+
+.fan-dial:hover:not(:disabled) {
+  background: var(--muted);
 }
 
 .fan-dial:active:not(:disabled) {
@@ -27,10 +30,7 @@
 }
 
 .fan-dial--on {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    inset 0 0 0 1px rgb(214 180 106 / 0.35),
-    0 18px 48px rgb(210 65 47 / 0.45);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent);
 }
 
 .fan-dial__rings {
@@ -43,23 +43,24 @@
 .fan-dial__track,
 .fan-dial__level {
   fill: none;
-  stroke-width: 9;
+  stroke-width: 8;
   stroke-linecap: round;
 }
 
 .fan-dial__track {
-  stroke: rgb(255 255 255 / 0.1);
+  stroke: var(--muted);
 }
 
 .fan-dial__level {
-  stroke: var(--turquoise);
+  stroke: var(--chart-1);
   transition:
-    stroke-dasharray var(--duration-slow) var(--ease),
-    stroke var(--duration-standard) var(--ease);
+    stroke-dasharray 640ms var(--ease-out),
+    stroke 320ms var(--ease-out);
 }
 
+/* Bole on the rings means one thing: Max Fan is holding them at full speed. */
 .fan-dial--on .fan-dial__level {
-  stroke: url(#fan-hot);
+  stroke: var(--chart-2);
 }
 
 .fan-dial__face {
@@ -70,18 +71,18 @@
 }
 
 .fan-dial__name {
-  font-size: 1.375rem;
-  font-weight: 650;
+  font-size: 1.25rem;
+  font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .fan-dial__state {
-  font-size: 0.9375rem;
-  color: var(--glaze-muted);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
 }
 
 .fan-dial--on .fan-dial__state {
-  color: var(--gilt);
+  color: var(--primary);
 }
 
 .fan-dial--busy .fan-dial__state {
@@ -89,14 +90,37 @@
 }
 
 .fan-dial__rpm {
-  margin-top: 6px;
-  font-size: 0.8125rem;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-  color: var(--glaze-faint);
+  color: var(--muted-foreground);
 }
 
 @keyframes fan-dial-pulse {
   50% {
     opacity: 0.45;
   }
+}
+
+/* The quick panel's dial is smaller; with a warning showing it drops the figures. */
+.quick-panel .fan-dial {
+  width: 184px;
+}
+
+.quick-panel .fan-dial__rpm {
+  font-size: 0.6875rem;
+}
+
+.quick-panel--crowded .fan-dial {
+  width: 160px;
+}
+
+.quick-panel--crowded .fan-dial__rpm {
+  display: none;
+}
+
+/* The overview gives the dial the most room. */
+.dial-lg .fan-dial {
+  width: 248px;
 }
