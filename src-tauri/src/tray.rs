@@ -180,6 +180,8 @@ pub fn tooltip_text(lang: &str, t: Option<&Telemetry>) -> String {
         (_, FanMode::Max) => "Max Fan",
         ("tr", FanMode::Auto) => "Otomatik",
         ("tr", FanMode::Quiet) => "Sessiz",
+        ("tr", FanMode::Curve) => "Eğri",
+        (_, FanMode::Curve) => "Curve",
         (_, FanMode::Auto) => "Auto",
         (_, FanMode::Quiet) => "Quiet",
     };
@@ -344,6 +346,7 @@ pub fn show_main(app: &AppHandle) {
 
 pub fn quit(app: &AppHandle) {
     crate::battery_ctl::release_all(app);
+    crate::hardware::release(app);
     if let Ok(wmi) = app.state::<AppState>().wmi() {
         if let Err(e) = fan::release(wmi.as_ref()) {
             eprintln!("could not restore fans before exit: {e}");

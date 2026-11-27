@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, type AbOptions, type AfterburnerView, type BatteryView, type GpuView, type PowerOptions } from "@/api";
+import { ChargeSection, useHardware } from "@/components/HardwareSections";
 import { ModeSwitch } from "@/components/ModeSwitch";
 import { Button } from "@/components/ui/button";
 import { Stat } from "@/components/ui/card";
@@ -29,6 +30,7 @@ export function PowerPage() {
   const [ab, setAb] = useState<AfterburnerView | null>(null);
   const [battery, setBattery] = useState<BatteryView | null>(null);
   const [watchError, setWatchError] = useState(false);
+  const hardware = useHardware();
 
   useEffect(() => {
     api.getGpu().then(setGpu).catch(() => {});
@@ -81,6 +83,8 @@ export function PowerPage() {
           />
         ))}
       </Section>
+
+      <ChargeSection hardware={hardware} />
 
       <Section title={t("gpuTitle")} description={gpuLine}>
         <SwitchRow

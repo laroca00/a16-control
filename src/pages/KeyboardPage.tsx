@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { SwitchRow } from "@/components/ui/switch";
+import { LocksPanel, useHardware } from "@/components/HardwareSections";
 import { useT, type Key } from "@/i18n";
 import { cn } from "@/lib/utils";
 import "./KeyboardPage.css";
@@ -57,6 +58,7 @@ function useKeyboard() {
 export function KeyboardPage() {
   const t = useT();
   const [kb, setKb] = useKeyboard();
+  const hardware = useHardware();
 
   const run = (p: Promise<KeyboardView>) => p.then(setKb).catch(() => {});
   const lit = (kb?.brightness ?? 0) > 0;
@@ -130,6 +132,11 @@ export function KeyboardPage() {
         >
           {lit ? t("kbOff") : t("kbOn")}
         </Button>
+      </Card>
+
+      <Card className="col-span-2 gap-4 p-6">
+        <CardTitle>{t("locksTitle")}</CardTitle>
+        <LocksPanel hardware={hardware} />
       </Card>
     </div>
   );

@@ -22,7 +22,9 @@ export function Overview({ control }: { control: Control }) {
                 ? t("statusMax")
                 : telemetry?.fanMode === "quiet"
                   ? t("statusQuiet")
-                  : t("statusAuto")}
+                  : telemetry?.fanMode === "curve"
+                    ? t("statusCurve")
+                    : t("statusAuto")}
         </p>
       </Card>
       <Card className="grid grid-rows-[auto_1fr] items-center">

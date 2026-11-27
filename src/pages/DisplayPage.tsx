@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type DisplayView } from "@/api";
+import { GpuModeSection } from "@/components/HardwareSections";
 import { Button } from "@/components/ui/button";
 import { Section, Sections } from "@/components/ui/section";
 import { Segmented } from "@/components/ui/segmented";
@@ -60,6 +61,8 @@ export function DisplayPage() {
           />
         </Section>
       )}
+
+      <GpuModeSection />
 
       <Section title={t("dispBlank")} description={t("dispOffHint")}>
         <Button variant="secondary" onClick={() => void api.screenOff()}>

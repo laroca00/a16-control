@@ -33,7 +33,7 @@ vi.mock("../api", async (orig) => {
   };
 });
 
-const ready: SetupStatus = { elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, keyboardLight: false };
+const ready: SetupStatus = { elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, wmiFeatures: true, keyboardLight: false };
 
 function renderPanel(status: SetupStatus) {
   vi.mocked(api.getSetupStatus).mockResolvedValue(status);

@@ -51,7 +51,11 @@ impl AppState {
             retry_every,
             fan_lock: Mutex::new(()),
             manual_fan: Mutex::new(config.fan_mode),
-            fan_gov: Mutex::new(fan::Governor::default()),
+            fan_gov: Mutex::new({
+                let mut g = fan::Governor::default();
+                g.set_curve(config.fan_curve);
+                g
+            }),
             power: Mutex::new(PowerState { controller: Controller::new(config.power_mode), last: None, error: None, failed_at: None }),
             config: Mutex::new(config),
         }
@@ -87,9 +91,12 @@ impl AppState {
     pub fn telemetry(&self) -> Result<Telemetry, String> {
         let wmi = self.wmi()?;
         let mut t = telemetry::read(wmi.as_ref()).map_err(|e| e.to_string())?;
-        // Quiet handed to the firmware while hot is still the mode the user picked.
-        if t.fan_mode == FanMode::Auto && self.fan_gov.lock().unwrap().active() {
-            t.fan_mode = FanMode::Quiet;
+        // Quiet handed to the firmware while hot, or any step of the curve,
+        // is still the mode the user picked.
+        if let Some(picked) = self.fan_gov.lock().unwrap().mode() {
+            if picked == FanMode::Curve || t.fan_mode == FanMode::Auto {
+                t.fan_mode = picked;
+            }
         }
         Ok(t)
     }

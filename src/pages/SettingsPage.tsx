@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Minus, X } from "lucide-react";
 import { api, type AlertOptions, type SetupStatus } from "@/api";
+import { LightsSection } from "@/components/HardwareSections";
 import { Button } from "@/components/ui/button";
 import { Section, Sections } from "@/components/ui/section";
 import { Segmented } from "@/components/ui/segmented";
@@ -14,6 +15,7 @@ const CHECKS: { key: Key; ok: (s: SetupStatus) => boolean }[] = [
   { key: "checkTask", ok: (s) => s.task },
   { key: "checkWmiSet", ok: (s) => s.wmiSet },
   { key: "checkWmiGet", ok: (s) => s.wmiGet },
+  { key: "checkWmiFeatures", ok: (s) => s.wmiFeatures },
   { key: "checkKeyboardLight", ok: (s) => !s.keyboardLight },
 ];
 
@@ -136,6 +138,8 @@ export function SettingsPage({ status }: { status: SetupStatus | null }) {
       </Section>
 
       <AlertSection />
+
+      <LightsSection />
 
       <Section title={t("shortcutsTitle")} description={t("shortcutsBody")}>
         <ul className="flex w-full flex-col gap-2">

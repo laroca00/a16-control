@@ -16,7 +16,7 @@ use crate::telemetry;
 pub fn is_cli(args: &[String]) -> bool {
     matches!(
         args.get(1).map(String::as_str),
-        Some("--probe" | "--fan" | "--fan-steps" | "--fan-whisper" | "--power" | "--install" | "--uninstall")
+        Some("--probe" | "--fan" | "--fan-steps" | "--fan-whisper" | "--power" | "--hw" | "--install" | "--uninstall")
     )
 }
 
@@ -68,6 +68,17 @@ fn execute(args: &[String]) -> Result<String, String> {
     let wmi = ComWmi::connect().map_err(|e| e.to_string())?;
     match (args.get(1).map(String::as_str), args.get(2).map(String::as_str)) {
         (Some("--probe"), _) => probe(&wmi),
+        (Some("--hw"), _) => {
+            let view = crate::hardware::view(
+                Some(&wmi),
+                crate::hardware::supported(),
+                &crate::config::load().hardware,
+                None,
+                crate::hardware::active_gpu(),
+                crate::hardware::battery_health(),
+            );
+            serde_json::to_string_pretty(&view).map_err(|e| e.to_string())
+        }
         (Some("--fan-steps"), _) => fan_steps(&wmi),
         (Some("--fan-whisper"), _) => fan_whisper(&wmi),
         (Some("--fan"), Some(mode)) => {
@@ -89,7 +100,7 @@ fn execute(args: &[String]) -> Result<String, String> {
             power::apply_decision(Ok(&wmi), &decision, power::profile(profile).fan)?;
             probe(&wmi)
         }
-        _ => Err("usage: GiENEMY.exe --probe | --fan auto|quiet|max | --fan-steps | --fan-whisper | --power battery|balanced|performance".into()),
+        _ => Err("usage: GiENEMY.exe --probe | --hw | --fan auto|quiet|max | --fan-steps | --fan-whisper | --power battery|balanced|performance".into()),
     }
 }
 

@@ -182,6 +182,27 @@ pub fn get_brightness() -> Result<u32, HwError> {
     .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
 }
 
+/// A numeric property of the first instance of a `root\WMI` class, such
+/// as the battery's `BatteryStaticData.DesignedCapacity`.
+pub fn first_u32(class: &str, property: &str) -> Result<u32, HwError> {
+    let (class, property) = (class.to_string(), property.to_string());
+    thread::spawn(move || unsafe {
+        let svc = connect_services()?;
+        let instances = svc
+            .CreateInstanceEnum(&BSTR::from(class.as_str()), WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY, None)
+            .map_err(unavailable)?;
+        let mut objs = [None];
+        let mut returned = 0u32;
+        instances.Next(WBEM_INFINITE, &mut objs, &mut returned).ok().map_err(unavailable)?;
+        let obj = objs[0].take().filter(|_| returned == 1).ok_or_else(|| HwError::Unavailable(format!("{class}: no instance")))?;
+        let mut v = VARIANT::default();
+        obj.Get(&HSTRING::from(property.as_str()), 0, &mut v, None, None).map_err(unavailable)?;
+        i32::try_from(&v).map(|n| n as u32).map_err(unavailable)
+    })
+    .join()
+    .map_err(|_| HwError::Unavailable("wmi thread panicked".into()))?
+}
+
 /// Sets the internal panel's brightness (0-100) through the monitor's WMI
 /// brightness methods, which live in the same namespace as the firmware.
 pub fn set_brightness(pct: u32) -> Result<(), HwError> {

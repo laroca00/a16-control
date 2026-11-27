@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
 import { api } from "../api";
 import { MainWindow } from "./MainWindow";
+import { hwView } from "../test/hardware";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ minimize: vi.fn(), toggleMaximize: vi.fn(), hide: vi.fn() }) }));
@@ -11,8 +12,14 @@ vi.mock("../api", async (orig) => {
   return {
     ...real,
     api: {
+      getHardware: vi.fn(() => Promise.resolve(hwView)),
+      setChargeLimit: vi.fn((limit: number) => Promise.resolve({ ...hwView, chargeLimit: limit })),
+      setHwToggle: vi.fn((toggle: string, on: boolean) => Promise.resolve({ ...hwView, toggles: { ...hwView.toggles, [toggle]: on } })),
+      setWinLockInGames: vi.fn((on: boolean) => Promise.resolve({ ...hwView, winLockInGames: on })),
+      setGpuMode: vi.fn((gpuMode: "hybrid" | "discrete") => Promise.resolve({ ...hwView, gpuMode })),
+      restartNow: vi.fn(() => Promise.resolve()),
       getSetupStatus: vi.fn(() =>
-        Promise.resolve({ elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, keyboardLight: false }),
+        Promise.resolve({ elevated: true, task: true, wmiSet: true, wmiGet: true, getClass: true, wmiFeatures: true, keyboardLight: false }),
       ),
       getTelemetry: vi.fn(() =>
         Promise.resolve({ rpm1: 4400, rpm2: 4900, cpuTemp: 70, gpuTemp: 60, cpuDuty: 50, gpuDuty: 50, fanMode: "auto" }),

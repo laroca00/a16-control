@@ -10,6 +10,52 @@ pub enum FanMode {
     /// The fixed lock without step mode, about 2400-2700 RPM; `Governor`
     /// hands it to the firmware when the chip gets hot.
     Quiet,
+    /// Moves between Quiet, Auto and Max by temperature; see `FanCurve`.
+    Curve,
+}
+
+/// Thresholds for `FanMode::Curve`, in °C for the hotter of CPU and GPU:
+/// Quiet below `quiet_below`, Max from `max_from`, the firmware in between.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FanCurve {
+    pub quiet_below: u32,
+    pub max_from: u32,
+}
+
+impl Default for FanCurve {
+    fn default() -> Self {
+        FanCurve { quiet_below: 60, max_from: 85 }
+    }
+}
+
+pub const CURVE_QUIET: std::ops::RangeInclusive<u32> = 40..=75;
+pub const CURVE_MAX: std::ops::RangeInclusive<u32> = 60..=95;
+/// Quiet and Max stay at least this far apart so the firmware has a band.
+pub const CURVE_GAP: u32 = 10;
+/// A step down waits until the chip is this far below the threshold, so a
+/// temperature sitting on a threshold does not flip the fans every tick.
+pub const CURVE_HYSTERESIS: u32 = 5;
+
+impl FanCurve {
+    pub fn valid(&self) -> bool {
+        CURVE_QUIET.contains(&self.quiet_below)
+            && CURVE_MAX.contains(&self.max_from)
+            && self.quiet_below + CURVE_GAP <= self.max_from
+    }
+
+    /// The mode for `temp`, given what is written now.
+    pub fn step(&self, temp: u32, written: Option<FanMode>) -> FanMode {
+        if temp >= self.max_from || (written == Some(FanMode::Max) && temp + CURVE_HYSTERESIS > self.max_from) {
+            FanMode::Max
+        } else if temp + CURVE_HYSTERESIS <= self.quiet_below
+            || (written == Some(FanMode::Quiet) && temp < self.quiet_below)
+        {
+            FanMode::Quiet
+        } else {
+            FanMode::Auto
+        }
+    }
 }
 
 // The governor must be off before the fixed duty is written, and the fixed
@@ -55,7 +101,8 @@ pub fn apply(wmi: &dyn GbWmi, mode: FanMode) -> Result<(), HwError> {
     let sequence: &[(&str, u32)] = match mode {
         FanMode::Max => &MAX_SEQUENCE,
         FanMode::Quiet => &QUIET_SEQUENCE,
-        FanMode::Auto => {
+        // The curve starts from the firmware; the governor's next tick picks the step.
+        FanMode::Auto | FanMode::Curve => {
             // Every step is attempted so the governor always gets switched back on.
             let mut first_err = None;
             for (method, value) in AUTO_SEQUENCE {
@@ -87,6 +134,7 @@ pub fn read_temp(wmi: &dyn GbWmi) -> Result<u32, HwError> {
 #[derive(Default, Debug)]
 pub struct Governor {
     mode: Option<FanMode>,
+    curve: FanCurve,
     /// What is in the firmware now; None when unknown or a write failed.
     written: Option<FanMode>,
 }
@@ -95,12 +143,21 @@ impl Governor {
     /// Called after a mode was written.
     pub fn reset(&mut self, mode: FanMode) {
         self.mode = Some(mode);
-        self.written = Some(mode);
+        self.written = Some(if mode == FanMode::Curve { FanMode::Auto } else { mode });
+    }
+
+    pub fn set_curve(&mut self, curve: FanCurve) {
+        self.curve = curve;
+    }
+
+    /// The mode the user picked, when ticks look after it.
+    pub fn mode(&self) -> Option<FanMode> {
+        self.mode.filter(|_| self.active())
     }
 
     /// Whether ticks need the temperature at all.
     pub fn active(&self) -> bool {
-        self.mode == Some(FanMode::Quiet)
+        matches!(self.mode, Some(FanMode::Quiet | FanMode::Curve))
     }
 
     /// The firmware holds a lock we may have to lift.
@@ -110,13 +167,14 @@ impl Governor {
 
     /// The mode to write for this temperature, or None to leave the fans be.
     pub fn tick(&mut self, temp: u32) -> Option<FanMode> {
-        if self.mode != Some(FanMode::Quiet) {
-            return None;
-        }
-        let want = match self.written {
-            Some(FanMode::Auto) if temp > QUIET_AGAIN => FanMode::Auto,
-            _ if temp >= QUIET_UNTIL => FanMode::Auto,
-            _ => FanMode::Quiet,
+        let want = match self.mode {
+            Some(FanMode::Quiet) => match self.written {
+                Some(FanMode::Auto) if temp > QUIET_AGAIN => FanMode::Auto,
+                _ if temp >= QUIET_UNTIL => FanMode::Auto,
+                _ => FanMode::Quiet,
+            },
+            Some(FanMode::Curve) => self.curve.step(temp, self.written),
+            _ => return None,
         };
         if self.written == Some(want) {
             return None;
@@ -269,5 +327,47 @@ mod tests {
         assert!(apply(&w, FanMode::Auto).is_err());
         assert_eq!(w.calls().last().unwrap(), &("SetAutoFanStatus".to_string(), 1));
         assert_eq!(w.calls().len(), 3);
+    }
+
+    #[test]
+    fn curve_steps_with_hysteresis() {
+        let c = FanCurve { quiet_below: 60, max_from: 85 };
+        assert_eq!(c.step(50, Some(FanMode::Auto)), FanMode::Quiet);
+        assert_eq!(c.step(58, Some(FanMode::Auto)), FanMode::Auto, "within 5°C below Quiet stays Auto");
+        assert_eq!(c.step(59, Some(FanMode::Quiet)), FanMode::Quiet);
+        assert_eq!(c.step(60, Some(FanMode::Quiet)), FanMode::Auto);
+        assert_eq!(c.step(85, Some(FanMode::Auto)), FanMode::Max);
+        assert_eq!(c.step(81, Some(FanMode::Max)), FanMode::Max, "Max holds until 5°C below");
+        assert_eq!(c.step(80, Some(FanMode::Max)), FanMode::Auto);
+    }
+
+    #[test]
+    fn curve_limits() {
+        assert!(FanCurve::default().valid());
+        assert!(!FanCurve { quiet_below: 70, max_from: 75 }.valid());
+        assert!(!FanCurve { quiet_below: 30, max_from: 80 }.valid());
+        assert!(!FanCurve { quiet_below: 60, max_from: 99 }.valid());
+    }
+
+    #[test]
+    fn governor_runs_the_curve() {
+        let mut g = Governor::default();
+        g.set_curve(FanCurve { quiet_below: 60, max_from: 85 });
+        g.reset(FanMode::Curve);
+        assert!(g.active());
+        assert_eq!(g.mode(), Some(FanMode::Curve));
+        assert_eq!(g.tick(50), Some(FanMode::Quiet));
+        assert_eq!(g.tick(52), None);
+        assert_eq!(g.tick(70), Some(FanMode::Auto));
+        assert_eq!(g.tick(90), Some(FanMode::Max));
+        assert_eq!(g.tick(82), None);
+        assert_eq!(g.tick(79), Some(FanMode::Auto));
+    }
+
+    #[test]
+    fn curve_starts_from_the_firmware() {
+        let w = FakeWmi::default();
+        apply(&w, FanMode::Curve).unwrap();
+        assert_eq!(w.calls(), AUTO_SEQUENCE.iter().map(|(m, v)| (m.to_string(), *v)).collect::<Vec<_>>());
     }
 }

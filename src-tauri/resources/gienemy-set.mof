@@ -1,6 +1,7 @@
 // GiENEMY: declares the BIOS's ACPI-WMI setter block so Windows exposes it
-// as root\WMI:GB_WMIACPI_Set. Compiled only when the class is missing one of
-// the fan methods GiENEMY needs.
+// as root\WMI:GB_WMIACPI_Set. Compiled when the class is missing one of the
+// methods GiENEMY uses; it declares every method Gigabyte's own definition
+// has, so replacing that definition loses nothing.
 #pragma namespace("\\\\.\\root\\wmi")
 
 [WMI, Dynamic, Provider("WmiProv"), Locale("MS\\0x409"),
@@ -36,6 +37,35 @@ class GB_WMIACPI_Set
     // across models but does not have to implement every one.
     [WmiMethodId(133), Implemented, Description("Whisper (quiet) fan mode on/off")]
     void SetWhisperMode([in, WmiDataId(1)] uint8 Data);
+
+    // Read from this BIOS's own WMBD dispatcher (DSDT, 2026-11-28); each
+    // writes one EC or CMOS field. See docs/firmware-methods.md.
+    [WmiMethodId(100), Implemented, Description("Charge policy: 0 standard, 1 stop at the charge limit")]
+    void SetChargePolicy([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(101), Implemented, Description("Charge limit, percent")]
+    void SetChargeStop([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(135), Implemented, Description("Power LED: 1 on, 0 off")]
+    void SetPwrLightDisplay([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(136), Implemented, Description("Battery LED: 1 on, 0 off")]
+    void SetBatteryLightDisplay([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(163), Implemented, Description("Boot logo animation (CMOS)")]
+    void SetPostAnimate([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(201), Implemented, Description("Fn lock")]
+    void SetFnKeyLockStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(202), Implemented, Description("Touchpad switch")]
+    void SetTouchPadStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(203), Implemented, Description("Windows key lock")]
+    void SetWinKeyLockStatus([in, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(230), Implemented, Description("GPU mode for the next boot (CMOS)")]
+    void SetPEG2orSG2([in, WmiDataId(1)] uint8 Data);
 
     [WmiMethodId(241), Implemented, Description("APU sustained power limit, mW")]
     void SetApuParameter3([in, WmiDataId(1)] uint32 Data);

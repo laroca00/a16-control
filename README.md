@@ -8,7 +8,11 @@ On the test machine, Max Fan took both fans from about 4,400/4,900 RPM to 6,380 
 
 ## What it does
 
-- Fan modes: Auto, Quiet and Max, from the tray, the panel or the main window
+- Fan modes: Auto, Quiet, Max and a curve that moves between them by temperature
+- Charge limit (60%, 80% or full) and battery health: capacity against design and charge cycles
+- GPU mode for the next boot: hybrid or NVIDIA only
+- Windows key lock (optionally only during fullscreen games), Fn lock and touchpad switch
+- Power and battery lights and the boot logo animation
 - Power modes: Battery, Auto and Performance. Auto follows the charger and switches to Performance while a game runs
 - Keyboard lighting colour, effect and brightness
 - Screen brightness, refresh rate and a screen-off button

@@ -1,7 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /** quiet holds the fans near 2400-2700 RPM and hands them to the firmware when hot. */
-export type FanMode = "max" | "auto" | "quiet";
+/** curve moves between quiet, auto and max by temperature, see FanCurve. */
+export type FanMode = "max" | "auto" | "quiet" | "curve";
+
+/** °C: quiet below quietBelow, max from maxFrom, the firmware in between. */
+export type FanCurve = { quietBelow: number; maxFrom: number };
 
 export type Telemetry = {
   rpm1: number;
@@ -20,6 +24,8 @@ export type SetupStatus = {
   wmiGet: boolean;
   /** The getter class exists; if it still lacks our methods, setup cannot fix it. */
   getClass: boolean;
+  /** Firmware methods for the charge limit, locks, lights and GPU mode. */
+  wmiFeatures: boolean;
   keyboardLight: boolean;
 };
 
@@ -61,6 +67,23 @@ export type PowerView = {
   lastError: string | null;
 };
 
+export type Toggle = "fnLock" | "winLock" | "touchpad" | "powerLed" | "batteryLed" | "bootAnimation";
+export type GpuMode = "hybrid" | "discrete";
+export type HardwareView = {
+  /** The firmware setters are registered; false until setup runs again. */
+  supported: boolean;
+  /** 100 means charging is not stopped early. */
+  chargeLimit: number | null;
+  toggles: Partial<Record<Toggle, boolean>>;
+  winLockInGames: boolean;
+  /** The mode the next boot uses. */
+  gpuMode: GpuMode | null;
+  /** The mode this boot runs in. */
+  gpuActive: GpuMode | null;
+  /** Capacities in mWh. */
+  battery: { design: number; full: number; cycles: number | null } | null;
+};
+
 /** Error text the backend uses when the firmware interface is not set up. */
 export const SETUP_NEEDED = "setup";
 
@@ -96,5 +119,13 @@ export const api = {
   screenOn: () => invoke<void>("screen_on"),
   getAlerts: () => invoke<AlertOptions>("get_alerts"),
   setAlerts: (options: AlertOptions) => invoke<AlertOptions>("set_alerts", { options }),
+  getHardware: () => invoke<HardwareView>("get_hardware"),
+  setChargeLimit: (limit: number) => invoke<HardwareView>("set_charge_limit", { limit }),
+  setHwToggle: (toggle: Toggle, on: boolean) => invoke<HardwareView>("set_hw_toggle", { toggle, on }),
+  setWinLockInGames: (on: boolean) => invoke<HardwareView>("set_win_lock_in_games", { on }),
+  setGpuMode: (mode: GpuMode) => invoke<HardwareView>("set_gpu_mode", { mode }),
+  restartNow: () => invoke<void>("restart_now"),
+  getFanCurve: () => invoke<FanCurve>("get_fan_curve"),
+  setFanCurve: (curve: FanCurve) => invoke<FanCurve>("set_fan_curve", { curve }),
   openReleasePage: (url: string) => invoke<void>("open_release_page", { url }),
 };

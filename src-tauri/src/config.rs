@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::afterburner::AbOptions;
-use crate::fan::FanMode;
+use crate::fan::{FanCurve, FanMode};
+use crate::hardware::HardwareOptions;
 use crate::keyboard::KeyboardSettings;
 use crate::monitor::AlertOptions;
 use crate::power::{Options, UiMode};
@@ -29,6 +30,9 @@ pub struct Config {
     pub fan_mode: Option<FanMode>,
     /// Warning for a chip that stays hot.
     pub alerts: AlertOptions,
+    pub hardware: HardwareOptions,
+    /// Thresholds for the Curve fan mode.
+    pub fan_curve: FanCurve,
 }
 
 impl Default for Config {
@@ -49,6 +53,8 @@ impl Default for Config {
             eco_targets: Vec::new(),
             fan_mode: None,
             alerts: AlertOptions::default(),
+            hardware: HardwareOptions::default(),
+            fan_curve: FanCurve::default(),
         }
     }
 }

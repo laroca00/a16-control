@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { Telemetry } from "@/api";
+import { api, type FanCurve, type Telemetry } from "@/api";
 import { FanModeSwitch } from "@/components/FanModeSwitch";
 import { MaxFanButton } from "@/components/MaxFanButton";
 import { Sparkline } from "@/components/Sparkline";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 import type { useFanControl } from "@/hooks/useFanControl";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,48 @@ function ChartGroup({
   );
 }
 
+// Match the backend: Quiet 40-75 °C, Max 60-95 °C, at least 10 °C apart.
+const GAP = 10;
+
+/** Two thresholds; each write happens where the drag ends. */
+function CurveEditor() {
+  const t = useT();
+  const [curve, setCurve] = useState<FanCurve | null>(null);
+
+  useEffect(() => {
+    api.getFanCurve().then(setCurve).catch(() => {});
+  }, []);
+
+  if (!curve) return null;
+  const commit = () => void api.setFanCurve(curve).then(setCurve).catch(() => {});
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <CardTitle>{t("curveTitle")}</CardTitle>
+      <Slider
+        label={t("curveQuiet")}
+        min={40}
+        max={75}
+        step={5}
+        value={curve.quietBelow}
+        output={t("tempValue", { value: curve.quietBelow })}
+        onChange={(v) => setCurve({ quietBelow: v, maxFrom: Math.max(curve.maxFrom, v + GAP) })}
+        onCommit={commit}
+      />
+      <Slider
+        label={t("curveMax")}
+        min={60}
+        max={95}
+        step={5}
+        value={curve.maxFrom}
+        output={t("tempValue", { value: curve.maxFrom })}
+        onChange={(v) => setCurve({ maxFrom: v, quietBelow: Math.min(curve.quietBelow, v - GAP) })}
+        onCommit={commit}
+      />
+      <CardDescription className="text-xs">{t("curveBody")}</CardDescription>
+    </div>
+  );
+}
+
 export function FanPage({ control }: { control: Control }) {
   const t = useT();
   const { telemetry, busy, toggle } = control;
@@ -60,6 +103,7 @@ export function FanPage({ control }: { control: Control }) {
       <Card className="items-center justify-center gap-6 p-6">
         <MaxFanButton telemetry={telemetry} busy={busy} onToggle={toggle} />
         <FanModeSwitch telemetry={telemetry} busy={busy} onChange={toggle} />
+        {telemetry?.fanMode === "curve" && <CurveEditor />}
       </Card>
       <Card className="gap-6">
         <ChartGroup

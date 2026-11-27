@@ -5,6 +5,7 @@ import { Segmented } from "@/components/ui/segmented";
 const MODES: { id: FanMode; label: Key }[] = [
   { id: "quiet", label: "fanModeQuiet" },
   { id: "auto", label: "fanModeAuto" },
+  { id: "curve", label: "fanModeCurve" },
   { id: "max", label: "fanModeMax" },
 ];
 

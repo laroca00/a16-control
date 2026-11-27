@@ -34,4 +34,28 @@ class GB_WMIACPI_Get
 
     [WmiMethodId(229), Implemented, Description("Fan 2 speed, RPM")]
     void getRpm2([out, WmiDataId(1)] uint16 Data);
+
+    [WmiMethodId(100), Implemented, Description("Charge policy")]
+    void GetChargePolicy([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(101), Implemented, Description("Charge limit, percent")]
+    void GetChargeStop([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(135), Implemented, Description("Power LED")]
+    void getPwrLightDisplay([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(136), Implemented, Description("Battery LED")]
+    void getBatteryLightDisplay([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(163), Implemented, Description("Boot logo animation")]
+    void getPostAnimate([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(201), Implemented, Description("Fn lock")]
+    void getFnKeyLockStatus([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(202), Implemented, Description("Touchpad switch")]
+    void getTouchPadStatus([out, WmiDataId(1)] uint8 Data);
+
+    [WmiMethodId(230), Implemented, Description("GPU mode for the next boot")]
+    void GetPEG2orSG2([out, WmiDataId(1)] uint8 Data);
 };

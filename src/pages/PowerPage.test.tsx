@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nProvider } from "../i18n";
 import { api, type PowerView } from "../api";
 import { PowerPage } from "./PowerPage";
+import { hwView } from "../test/hardware";
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }));
 
@@ -20,6 +21,12 @@ vi.mock("../api", async (orig) => {
   return {
     ...real,
     api: {
+      getHardware: vi.fn(() => Promise.resolve(hwView)),
+      setChargeLimit: vi.fn((limit: number) => Promise.resolve({ ...hwView, chargeLimit: limit })),
+      setHwToggle: vi.fn((toggle: string, on: boolean) => Promise.resolve({ ...hwView, toggles: { ...hwView.toggles, [toggle]: on } })),
+      setWinLockInGames: vi.fn((on: boolean) => Promise.resolve({ ...hwView, winLockInGames: on })),
+      setGpuMode: vi.fn((gpuMode: "hybrid" | "discrete") => Promise.resolve({ ...hwView, gpuMode })),
+      restartNow: vi.fn(() => Promise.resolve()),
       getPower: vi.fn(() => Promise.resolve(view)),
       setPowerMode: vi.fn(() => Promise.resolve(view)),
       setPowerOption: vi.fn(() => Promise.resolve({ ...view, options: { autoGame: true, acdcSwitch: true } })),
@@ -91,4 +98,14 @@ test("watcher start reports why it cannot run on AC", async () => {
   renderPage();
   await userEvent.click(await screen.findByRole("button", { name: "Watch for 10 minutes" }));
   expect(await screen.findByText(/Unplug the charger/)).toBeInTheDocument();
+});
+
+test("charge limit reaches the firmware and battery health shows", async () => {
+  renderPage();
+  await userEvent.click(await screen.findByRole("radio", { name: "80%" }));
+  expect(api.setChargeLimit).toHaveBeenCalledWith(80);
+  expect(await screen.findByRole("radio", { name: "80%" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByText("77%")).toBeInTheDocument();
+  expect(screen.getByText("59 / 76 Wh")).toBeInTheDocument();
+  expect(screen.getByText("65")).toBeInTheDocument();
 });

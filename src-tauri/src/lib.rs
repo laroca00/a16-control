@@ -8,6 +8,7 @@ pub mod display;
 pub mod elevation;
 pub mod fan;
 pub mod gpu;
+pub mod hardware;
 pub mod hw;
 pub mod keyboard;
 pub mod keyboard_ctl;
@@ -58,6 +59,7 @@ pub fn run(needs_setup: bool, tray_start: bool) {
         .manage(gpu::GpuCtl::new())
         .manage(battery_ctl::BatteryCtl::default())
         .manage(monitor::Monitor::default())
+        .manage(hardware::HardwareCtl::default())
         .invoke_handler(commands::handler())
         .on_window_event(|window, event| match (window.label(), event) {
             ("panel", WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
@@ -207,7 +209,9 @@ fn gpu_tick(app: &AppHandle) {
 fn spawn_background(app: AppHandle) {
     let mut last_gpu = std::time::Instant::now() - GPU_CHECK_EVERY;
     let mut last_monitor = std::time::Instant::now() - MONITOR_EVERY;
-    thread::spawn(move || loop {
+    thread::spawn(move || {
+        hardware::restore(&app);
+        loop {
         let request = config::show_request_path();
         if request.exists() {
             let _ = std::fs::remove_file(&request);
@@ -218,6 +222,7 @@ fn spawn_background(app: AppHandle) {
         tray::reap_panel(&app);
         display::watch(&app);
         battery_ctl::tick(&app);
+        hardware::tick(&app);
         if last_gpu.elapsed() >= GPU_CHECK_EVERY {
             last_gpu = std::time::Instant::now();
             gpu_tick(&app);
@@ -243,5 +248,6 @@ fn spawn_background(app: AppHandle) {
             }
         }
         thread::sleep(TELEMETRY_INTERVAL);
+        }
     });
 }

@@ -43,6 +43,8 @@ pub struct SetupStatus {
     pub wmi_get: bool,
     /// The getter class exists at all; when it lacks our methods, setup cannot fix it.
     pub get_class: bool,
+    /// Charge limit, key locks, LEDs and GPU mode; an older install lacks them.
+    pub wmi_features: bool,
     pub keyboard_light: bool,
 }
 
@@ -160,6 +162,7 @@ pub fn status() -> SetupStatus {
         wmi_set: class_has("GB_WMIACPI_Set", &REQUIRED_SET),
         wmi_get: class_has("GB_WMIACPI_Get", &REQUIRED_GET),
         get_class: class_methods("GB_WMIACPI_Get").is_ok(),
+        wmi_features: class_has("GB_WMIACPI_Set", &crate::hardware::SETTERS),
         keyboard_light: keyboard_light_present(),
     }
 }
@@ -204,7 +207,9 @@ fn current_user() -> String {
 
 pub fn install(exe: &Path) -> Result<(), String> {
     let dir = setup_workdir(exe);
-    if !class_has("GB_WMIACPI_Set", &REQUIRED_SET) {
+    // Also for an install from before the hardware features: our definition
+    // is a superset of every one this class has had.
+    if !class_has("GB_WMIACPI_Set", &REQUIRED_SET) || !class_has("GB_WMIACPI_Set", &crate::hardware::SETTERS) {
         mofcomp(&dir, SET_MOF, "gienemy-set.mof")?;
     }
     // Only when absent: Gigabyte's own definition is fuller than ours.

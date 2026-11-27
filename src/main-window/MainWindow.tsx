@@ -26,7 +26,7 @@ const PAGES: { id: Page; label: Key; icon: NavItemData["icon"] }[] = [
   { id: "settings", label: "navSettings", icon: Settings },
 ];
 
-const MODE_LABEL: Record<FanMode, Key> = { max: "fanMax", auto: "fanModeAuto", quiet: "fanModeQuiet" };
+const MODE_LABEL: Record<FanMode, Key> = { max: "fanMax", auto: "fanModeAuto", quiet: "fanModeQuiet", curve: "fanModeCurve" };
 
 /** The product name over the live fan mode; the dot is bole while Max Fan holds the fans. */
 function Brand({ mode }: { mode: FanMode | null }) {

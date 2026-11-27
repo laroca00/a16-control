@@ -7,7 +7,8 @@ use std::time::Duration;
 use windows::core::{s, w, HSTRING, PCWSTR};
 use windows::Win32::Foundation::{CloseHandle, FILETIME, HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
-    ChangeDisplaySettingsExW, EnumDisplaySettingsW, GetMonitorInfoW, MonitorFromWindow, CDS_TEST,
+    ChangeDisplaySettingsExW, EnumDisplayDevicesW, EnumDisplaySettingsW, DISPLAY_DEVICEW,
+    DISPLAY_DEVICE_PRIMARY_DEVICE, GetMonitorInfoW, MonitorFromWindow, CDS_TEST,
     CDS_UPDATEREGISTRY, DEVMODEW, DISP_CHANGE_SUCCESSFUL, DM_DISPLAYFREQUENCY, ENUM_CURRENT_SETTINGS,
     ENUM_DISPLAY_SETTINGS_MODE, MONITORINFO, MONITOR_DEFAULTTONEAREST,
 };
@@ -433,5 +434,22 @@ mod tests {
         assert_eq!(g.data3, 0x4f42);
         assert_eq!(g.data4, [0x87, 0x37, 0x46, 0x34, 0x5c, 0x09, 0xc2, 0x38]);
         assert!(parse_guid("nope").is_none());
+    }
+}
+
+/// Name of the adapter that drives the primary display, e.g.
+/// "NVIDIA GeForce RTX 5060 Laptop GPU".
+pub fn primary_adapter() -> Option<String> {
+    let mut i = 0;
+    loop {
+        let mut dd = DISPLAY_DEVICEW { cb: std::mem::size_of::<DISPLAY_DEVICEW>() as u32, ..Default::default() };
+        if !unsafe { EnumDisplayDevicesW(PCWSTR::null(), i, &mut dd, 0) }.as_bool() {
+            return None;
+        }
+        if dd.StateFlags.contains(DISPLAY_DEVICE_PRIMARY_DEVICE) {
+            let len = dd.DeviceString.iter().position(|&c| c == 0).unwrap_or(dd.DeviceString.len());
+            return Some(String::from_utf16_lossy(&dd.DeviceString[..len]));
+        }
+        i += 1;
     }
 }

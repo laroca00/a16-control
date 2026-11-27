@@ -7,7 +7,8 @@ use crate::display::{self, DisplayView};
 use crate::afterburner::{self, AbOptions};
 use crate::battery::BatteryView;
 use crate::battery_ctl;
-use crate::fan::FanMode;
+use crate::fan::{FanCurve, FanMode};
+use crate::hardware::{self, GpuMode, HardwareView, Toggle};
 use crate::gpu::{GpuCtl, GpuView};
 use crate::keyboard::KeyboardView;
 use crate::keyboard_ctl::{self, KeyboardCtl};
@@ -316,6 +317,57 @@ pub fn open_main(app: AppHandle) {
 }
 
 #[tauri::command]
+pub async fn get_hardware(app: AppHandle) -> Result<HardwareView, String> {
+    joined(spawn_blocking(move || hardware::current_view(&app)).await)
+}
+
+#[tauri::command]
+pub async fn set_charge_limit(app: AppHandle, limit: u32) -> Result<HardwareView, String> {
+    joined(spawn_blocking(move || hardware::set_charge_limit(&app, limit)).await)?
+}
+
+#[tauri::command]
+pub async fn set_hw_toggle(app: AppHandle, toggle: Toggle, on: bool) -> Result<HardwareView, String> {
+    joined(spawn_blocking(move || hardware::set_toggle(&app, toggle, on)).await)?
+}
+
+#[tauri::command]
+pub async fn set_win_lock_in_games(app: AppHandle, on: bool) -> Result<HardwareView, String> {
+    joined(spawn_blocking(move || hardware::set_win_lock_in_games(&app, on)).await)
+}
+
+#[tauri::command]
+pub async fn set_gpu_mode(app: AppHandle, mode: GpuMode) -> Result<HardwareView, String> {
+    joined(spawn_blocking(move || hardware::set_gpu_mode(&app, mode)).await)?
+}
+
+/// For the GPU mode, which the BIOS only reads at power-on.
+#[tauri::command]
+pub fn restart_now(app: AppHandle) -> Result<(), String> {
+    tool("shutdown.exe").args(["/r", "/t", "0"]).spawn().map_err(|e| e.to_string())?;
+    // Hands the fans back and lifts a game's key lock on the way out.
+    tray::quit(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_fan_curve(state: State<AppState>) -> FanCurve {
+    state.config.lock().unwrap().fan_curve
+}
+
+#[tauri::command]
+pub fn set_fan_curve(state: State<AppState>, curve: FanCurve) -> Result<FanCurve, String> {
+    if !curve.valid() {
+        return Err(format!("invalid fan curve {curve:?}"));
+    }
+    state.fan_gov.lock().unwrap().set_curve(curve);
+    let mut cfg = state.config.lock().unwrap();
+    cfg.fan_curve = curve;
+    config::save(&cfg)?;
+    Ok(curve)
+}
+
+#[tauri::command]
 pub fn quit_app(app: AppHandle) {
     tray::quit(&app);
 }
@@ -352,6 +404,14 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         get_alerts,
         set_alerts,
         open_release_page,
+        get_hardware,
+        set_charge_limit,
+        set_hw_toggle,
+        set_win_lock_in_games,
+        set_gpu_mode,
+        restart_now,
+        get_fan_curve,
+        set_fan_curve,
         open_main,
         quit_app
     ]
